@@ -1,0 +1,22 @@
+# Greita Windows derinimo iteracija (tik Windows paketas + dūmų testas). Paleidimas: Actions -> debug-windows -> Run workflow
+name: debug-windows
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip pyinstaller faster-whisper imageio-ffmpeg cryptography "av>=11,<19"
+      - run: choco install innosetup -y --no-progress
+      - run: python lite/packaging/build.py --out dist-lite
+        env:
+          SRTFORGE_UPDATE_PUBLIC_KEY: ${{ vars.SRTFORGE_UPDATE_PUBLIC_KEY }}
+      - name: Dūmų testas
+        shell: bash
+        run: python lite/packaging/smoke.py "$(ls dist-lite/* | head -1)"

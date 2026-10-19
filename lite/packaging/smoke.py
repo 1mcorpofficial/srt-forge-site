@@ -61,6 +61,7 @@ def main() -> int:
     env = {k: v for k, v in os.environ.items() if k.upper() not in ("PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV")}
     env.update(SRTFORGE_DATA_DIR=data, SRTFORGE_MODEL_DIR=models, SRTFORGE_DEBUG="1")
     # PATH palikti: Windows reikia sisteminių DLL; ffmpeg turi būti paties paketo viduje (tikrinam žemiau)
+    print(f"paleidžiama t={time.time():.3f}", flush=True)
     proc = subprocess.Popen([exe, "--no-browser", "--idle-exit", "120"], env=env,
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
@@ -82,6 +83,7 @@ def main() -> int:
         def call(method, path, body=None, timeout=30):
             import socket
 
+            print(f"  klientas jungiasi t={time.time():.3f} {method} {path}", flush=True)
             payload = body or b""
             request = (f"{method} {path} HTTP/1.0\r\nHost: 127.0.0.1:{info['port']}\r\nX-Token: {info['token']}\r\n"
                        f"Content-Length: {len(payload)}\r\nConnection: close\r\n\r\n").encode() + payload

@@ -118,8 +118,9 @@ class App:
         class Handler(BaseHTTPRequestHandler):
             server_version = "SRTForgeLite"
 
-            def log_message(self, *args):  # tyliai
-                pass
+            def log_message(self, *args):  # tyliai (derinimo režime užrašoma)
+                if os.environ.get("SRTFORGE_DEBUG"):
+                    _debug_log("request " + (args[0] % args[1:] if args else "") + f" t={time.time():.3f}")
 
             # --- apsauga ---
             def _authorized(self) -> bool:
@@ -247,7 +248,16 @@ class App:
                     job.state, job.stage = "cancelled", "Nutraukta"
                 return self._json(200, job.public())
 
-        app.httpd = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+        class Server(ThreadingHTTPServer):
+            def get_request(self):
+                request, address = super().get_request()
+                if os.environ.get("SRTFORGE_DEBUG"):
+                    _debug_log(f"accept {address} t={time.time():.3f}")
+                return request, address
+
+        app.httpd = Server(("127.0.0.1", port), Handler)
+        if os.environ.get("SRTFORGE_DEBUG"):
+            _debug_log(f"listening {app.httpd.server_address} t={time.time():.3f}")
         url = f"http://127.0.0.1:{app.httpd.server_address[1]}/?t={app.token}"
         threading.Thread(target=app.httpd.serve_forever, daemon=True).start()
         if open_browser:
@@ -267,6 +277,14 @@ def _log_exception(name: str) -> None:
 
         with open(os.path.join(data_dir(), "srtforge.log"), "a", encoding="utf-8") as handle:
             handle.write(f"--- {time.strftime('%Y-%m-%d %H:%M:%S')} užduotis {name}\n{traceback.format_exc()}\n")
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _debug_log(text: str) -> None:
+    try:
+        with open(os.path.join(data_dir(), "srtforge.log"), "a", encoding="utf-8") as handle:
+            handle.write(text + "\n")
     except Exception:  # noqa: BLE001
         pass
 
