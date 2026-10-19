@@ -42,6 +42,14 @@ def ensure_build_deps() -> None:
         if not old_enough:
             print("+ pip install numpy<2 (suderinamumas su macOS 12)", flush=True)
             subprocess.run([sys.executable, "-m", "pip", "install", "--quiet", "--force-reinstall", "--no-deps", "numpy>=1.26,<2"], check=True)
+        try:
+            import av
+
+            if int(av.__version__.split(".")[0]) >= 15:      # av 15+ macOS ratai reikalauja macOS 14
+                print("+ pip install av==14.2.0 (suderinamumas su macOS 12)", flush=True)
+                subprocess.run([sys.executable, "-m", "pip", "install", "--quiet", "--force-reinstall", "--no-deps", "av==14.2.0"], check=True)
+        except ImportError:
+            pass
     for module, requirement in needed:
         try:
             __import__(module)
@@ -124,11 +132,12 @@ def check_min_macos(app: str) -> None:
     """Visi supakuoti Mach-O failai turi veikti macOS 12: kitaip programa pas vartotoją nepasileis (CI bėga su naujesne macOS)."""
     import re
 
-    bad = {}
+    bad, warned = {}, {}
     for root, _dirs, files in os.walk(app):
         for name in files:
             path = os.path.join(root, name)
-            if os.path.islink(path) or not (name.endswith((".so", ".dylib")) or "." not in name):
+            library = name.endswith((".so", ".dylib"))
+            if os.path.islink(path) or not (library or os.access(path, os.X_OK)):
                 continue
             out = subprocess.run(["otool", "-l", path], capture_output=True, text=True).stdout
             for block in out.split("Load command")[1:]:
@@ -139,7 +148,9 @@ def check_min_macos(app: str) -> None:
                 else:
                     continue
                 if match and (int(match.group(1)), int(match.group(2))) > MAX_MACOS_MINOS:
-                    bad[os.path.relpath(path, app)] = (int(match.group(1)), int(match.group(2)))
+                    (bad if library else warned)[os.path.relpath(path, app)] = (int(match.group(1)), int(match.group(2)))
+    for path, found in sorted(warned.items())[:10]:
+        print(f"  ĮSPĖJIMAS (vykdomasis): {path} reikalauja {found[0]}.{found[1]}", flush=True)
     if bad:
         for path, found in sorted(bad.items())[:25]:
             print(f"  per nauja macOS: {path} reikalauja {found[0]}.{found[1]}", flush=True)
