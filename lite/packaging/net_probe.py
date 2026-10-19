@@ -1,18 +1,26 @@
-"""Tinklo zondas (CI derinimui): ar paprastas Python HTTP serveris atsako klientui toje pačioje mašinoje?"""
+"""Tinklo zondas (CI derinimui). Rezultatas rašomas į failą (argv[1]) – veikia ir PyInstaller --windowed."""
 import socket
 import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+OUT = sys.argv[1] if len(sys.argv) > 1 else None
+LINES = []
+
+
+def say(text):
+    LINES.append(text)
+    if sys.stdout:
+        print(text, flush=True)
+
 
 class H(BaseHTTPRequestHandler):
     def do_GET(self):
-        body = b"ok"
         self.send_response(200)
         self.send_header("Content-Length", "2")
         self.end_headers()
-        self.wfile.write(body)
+        self.wfile.write(b"ok")
 
     def log_message(self, *a):
         pass
@@ -38,10 +46,12 @@ def probe(bind, host):
     except Exception as error:  # noqa: BLE001
         result = f"KLAIDA {error!r}"
     server.shutdown()
-    print(f"probe bind={bind} klientas={host}: {result}", flush=True)
-    return result == "OK"
+    say(f"probe bind={bind} klientas={host}: {result}")
 
 
-ok = [probe("127.0.0.1", "127.0.0.1"), probe("0.0.0.0", "127.0.0.1")]
-print("python", sys.version.split()[0])
-sys.exit(0)
+probe("127.0.0.1", "127.0.0.1")
+probe("0.0.0.0", "127.0.0.1")
+say("python " + sys.version.split()[0])
+if OUT:
+    with open(OUT, "w", encoding="utf-8") as handle:
+        handle.write("\n".join(LINES) + "\n")

@@ -14,13 +14,26 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install --upgrade pip pyinstaller faster-whisper imageio-ffmpeg cryptography "av>=11,<19"
       - run: choco install innosetup -y --no-progress
-      - name: Tinklo zondas (paprastas Python)
-        run: python lite/packaging/net_probe.py
-      - name: Konsolinis paketas (be --windowed)
+      - name: Zondas - paprastas Python
+        shell: bash
+        run: python lite/packaging/net_probe.py probe-python.txt && cat probe-python.txt
+      - name: Zondas - PyInstaller --windowed
+        shell: bash
+        run: |
+          python -m PyInstaller --noconfirm --windowed --name probe-w --distpath pw lite/packaging/net_probe.py
+          ./pw/probe-w/probe-w.exe probe-w.txt || true
+          sleep 3; cat probe-w.txt || echo "(windowed zondas nesukure failo)"
+      - name: Zondas - PyInstaller --console
+        shell: bash
+        run: |
+          python -m PyInstaller --noconfirm --name probe-c --distpath pc lite/packaging/net_probe.py
+          ./pc/probe-c/probe-c.exe probe-c.txt || true
+          cat probe-c.txt || echo "(console zondas nesukure failo)"
+      - name: Konsolinis paketas
         run: python lite/packaging/build.py --console --out dist-console
         env:
           SRTFORGE_UPDATE_PUBLIC_KEY: ${{ vars.SRTFORGE_UPDATE_PUBLIC_KEY }}
-      - name: Dūmų testas - konsolinis
+      - name: Dūmų testas - konsolinis (su UTF-8 pataisa)
         shell: bash
         continue-on-error: true
         run: python lite/packaging/smoke.py "$(ls dist-console/* | head -1)"

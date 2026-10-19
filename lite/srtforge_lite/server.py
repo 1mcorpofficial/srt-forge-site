@@ -378,8 +378,18 @@ def _update_hooks() -> dict:
     return {"update_checker": checker, "update_installer": installer}
 
 
+def _force_utf8_output() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")   # type: ignore[union-attr]
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def main() -> None:
     import argparse
+
+    _force_utf8_output()
 
     parser = argparse.ArgumentParser(prog="srtforge", description="SRT Forge Lite: vietinė garso transkripcija į subtitrus")
     parser.add_argument("--port", type=int, default=0)
