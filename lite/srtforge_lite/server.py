@@ -18,18 +18,19 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Dict, Optional
 
 from . import __version__
-from .core import drop_hallucinated, find_hallucinations, to_json, to_srt, to_ts, to_txt, to_vtt
+from .core import drop_hallucinated, find_hallucinations, speaker_label, to_json, to_srt, to_ts, to_txt, to_vtt
 from .engine import MODELS, embed_subtitles, has_video, recommend_model, total_ram_gb, transcribe
 from .models import system_report
 
 UI_PATH = os.path.join(os.path.dirname(__file__), "ui.html")
 # fmt -> (Content-Type, plėtinys, atvaizdavimas pagal darbą)
 FORMATS = {
-    "srt": ("application/x-subrip", "srt", lambda job: to_srt(job.cues)),
-    "vtt": ("text/vtt", "vtt", lambda job: to_vtt(job.cues)),
-    "txt": ("text/plain", "txt", lambda job: to_txt(job.cues)),
-    "ts": ("text/plain", "laikai.txt", lambda job: to_ts(job.cues)),
-    "json": ("application/json", "json", lambda job: to_json(job.cues, job.language, job.options.get("task", "transcribe"))),
+    "srt": ("application/x-subrip", "srt", lambda job: to_srt(job.cues, job.speaker_names)),
+    "vtt": ("text/vtt", "vtt", lambda job: to_vtt(job.cues, job.speaker_names)),
+    "txt": ("text/plain", "txt", lambda job: to_txt(job.cues, names=job.speaker_names)),
+    "ts": ("text/plain", "laikai.txt", lambda job: to_ts(job.cues, job.speaker_names)),
+    "json": ("application/json", "json", lambda job: to_json(job.cues, job.language, job.options.get("task", "transcribe"),
+                                                            job.speaker_names)),
 }
 TASKS = ("transcribe", "translate")
 MAX_NAME = 200
@@ -47,17 +48,23 @@ class Job:
         self.error: Optional[str] = None
         self.cues = []
         self.warnings = []
+        self.extra_warnings: list = []
         self.language: Optional[str] = None
         self.cancel = threading.Event()
         self.has_video = False
+        self.speaker_names: Dict[int, str] = {}
         self.embed: dict = {"state": "none", "mode": None, "error": None, "path": None, "name": None}
 
     def public(self) -> dict:
         return {"id": self.id, "name": self.name, "state": self.state, "stage": self.stage,
                 "progress": round(self.progress, 3), "error": self.error, "warnings": self.warnings,
                 "language": self.language, "cues": len(self.cues), "task": self.options.get("task", "transcribe"),
-                "has_video": self.has_video,
+                "has_video": self.has_video, "speakers": self.speaker_list(),
                 "embed": {k: self.embed[k] for k in ("state", "mode", "error", "name")}}
+
+    def speaker_list(self) -> list:
+        ids = sorted({c.speaker for c in self.cues if c.speaker is not None})
+        return [{"id": i, "name": speaker_label(i, self.speaker_names)} for i in ids]
 
     def remove_files(self) -> None:
         for path in (self.path, self.embed.get("path")):
@@ -115,9 +122,10 @@ class App:
                 cues, language, _duration = self.runner(
                     job.path, model=job.options["model"], language=job.options["language"],
                     model_dir=self.model_dir, prompt=job.options.get("prompt"), task=job.options.get("task", "transcribe"),
+                    speakers=job.options.get("speakers"), warn=lambda text, job=job: job.extra_warnings.append(text),
                     progress=progress, cancelled=job.cancel.is_set)
                 flags = find_hallucinations(cues)
-                job.warnings = [f"Tikėtina Whisper haliucinacija: „{p}“ ×{n} (subtitrai {a + 1}–{b + 1})" for a, b, p, n in flags]
+                job.warnings = [f"Tikėtina Whisper haliucinacija: „{p}“ ×{n} (subtitrai {a + 1}–{b + 1})" for a, b, p, n in flags] + job.extra_warnings
                 job.cues = drop_hallucinated(cues, flags)
                 job.language = language
                 try:
@@ -141,7 +149,7 @@ class App:
         job.embed = {"state": "running", "mode": mode, "error": None, "path": None, "name": None}
         try:
             base = os.path.join(self.work_dir, uuid.uuid4().hex)
-            out = embed_subtitles(job.path, to_srt(job.cues), base, mode)
+            out = embed_subtitles(job.path, to_srt(job.cues, job.speaker_names), base, mode)
             stem = os.path.splitext(job.name)[0] or "video"
             suffix = ".subtitrai" if mode == "soft" else ".su-subtitrais"
             job.embed = {"state": "done", "mode": mode, "error": None, "path": out,
@@ -236,7 +244,9 @@ class App:
                     fmt = parts[3]
                     if fmt == "transcript" and job.state == "done":
                         return self._json(200, {"language": job.language, "task": job.options.get("task", "transcribe"),
-                                                "cues": [{"start": c.start, "end": c.end, "text": c.text.replace("\n", " ")}
+                                                "speakers": job.speaker_list(),
+                                                "cues": [{"start": c.start, "end": c.end, "text": c.text.replace("\n", " "),
+                                                          "speaker": c.speaker, "speaker_name": speaker_label(c.speaker, job.speaker_names)}
                                                          for c in job.cues]})
                     if fmt == "video" and job.embed.get("state") == "done" and job.embed.get("path"):
                         return self._stream_file(job.embed["path"], job.embed["name"])
@@ -265,6 +275,9 @@ class App:
                 task = query.get("task") or "transcribe"
                 if task not in TASKS:
                     return self._json(400, {"error": "nežinoma užduotis"})
+                speakers = query.get("speakers") or "off"
+                if speakers not in ("off", "auto") and not (speakers.isdigit() and 1 <= int(speakers) <= 12):
+                    return self._json(400, {"error": "neteisingas kalbėtojų skaičius"})
                 length = int(self.headers.get("Content-Length") or 0)
                 if length <= 0:
                     return self._json(400, {"error": "tuščias failas"})
@@ -283,7 +296,8 @@ class App:
                     os.remove(path)
                     return self._json(400, {"error": "įkėlimas nutrūko"})
 
-                job = Job(name, path, {"model": model, "language": language, "prompt": query.get("prompt"), "task": task})
+                job = Job(name, path, {"model": model, "language": language, "prompt": query.get("prompt"), "task": task,
+                                   "speakers": speakers})
                 app.jobs[job.id] = job
                 app.queue.put(job)
                 return self._json(200, job.public())
@@ -304,6 +318,18 @@ class App:
                         return self._json(409, {"error": "jau vyksta"})
                     threading.Thread(target=app.embed_worker, args=(job, mode), daemon=True).start()
                     time.sleep(0.05)
+                    return self._json(200, job.public())
+                if len(parts) == 4 and parts[:2] == ["api", "jobs"] and parts[3] == "speakers":
+                    job = app.jobs.get(parts[2])
+                    if not job or job.state != "done":
+                        return self._json(404, {"error": "nerasta"})
+                    try:
+                        length = min(int(self.headers.get("Content-Length") or 0), 10_000)
+                        payload = json.loads(self.rfile.read(length) or b"{}")
+                        names = {int(k): str(v).strip()[:60] for k, v in (payload.get("names") or {}).items() if str(v).strip()}
+                    except (ValueError, TypeError, AttributeError):
+                        return self._json(400, {"error": "neteisingi vardai"})
+                    job.speaker_names = names
                     return self._json(200, job.public())
                 if parsed.path != "/api/update/install" or not app.update_entry or not app.update_installer:
                     return self._json(404, {"error": "nerasta"})

@@ -60,6 +60,7 @@ footer{margin-top:32px;color:var(--muted);font-size:12px}
     <label>Užduotis<select id="task"><option value="transcribe">Transkribuoti (ta pačia kalba)</option><option value="translate">Versti į anglų kalbą</option></select></label>
     <label>Kalba<select id="language"><option value="lt">Lietuvių</option><option value="en">English</option><option value="lv">Latviešu</option><option value="et">Eesti</option><option value="pl">Polski</option><option value="ru">Русский</option><option value="de">Deutsch</option><option value="fr">Français</option><option value="es">Español</option><option value="auto">Atpažinti automatiškai</option></select></label>
     <label>Modelis<select id="model"></select></label>
+    <label>Kalbėtojai<select id="speakers"><option value="off">Neskirti</option><option value="auto">Atpažinti automatiškai</option><option value="2">2 kalbėtojai</option><option value="3">3 kalbėtojai</option><option value="4">4 kalbėtojai</option><option value="5">5 kalbėtojų</option><option value="6">6 kalbėtojų</option></select></label>
   </div>
   <div class="row"><label>Vardai ir terminai (nebūtina, padeda atpažinti)<input type="text" id="prompt" placeholder="pvz. Jonas, Pricelio, Kaunas"></label></div>
 
@@ -103,7 +104,7 @@ async function boot() {
 
 /* ——— įkėlimas ir diktavimas ——— */
 function upload(blob, name) {
-  const q = new URLSearchParams({name, model: $("model").value, language: $("language").value, task: $("task").value});
+  const q = new URLSearchParams({name, model: $("model").value, language: $("language").value, task: $("task").value, speakers: $("speakers").value});
   if ($("prompt").value.trim()) q.set("prompt", $("prompt").value.trim());
   return fetch("/api/upload?" + q, {method: "PUT", headers: hdr, body: blob})
     .then(r => r.json()).then(j => { if (j.error) alert(j.error); refresh(); return j; });
@@ -150,7 +151,7 @@ async function refresh() {
 }
 function paint(el, j) {
   const done = j.state === "done", live = j.state === "running" || j.state === "waiting";
-  const sig = [j.state, j.stage, j.error, j.embed.state, j.embed.error, j.cues, expanded.has(j.id), (j.warnings || []).length].join("|");
+  const sig = [j.state, j.stage, j.error, j.embed.state, j.embed.error, j.cues, expanded.has(j.id), (j.warnings || []).length, (j.speakers || []).map(x => x.name).join(",")].join("|");
   if (!done) { // eiga: atnaujinam tik juostą ir tekstą
     if (el.dataset.mode !== "live" || el.dataset.sig !== sig) {
       el.dataset.mode = "live"; el.dataset.sig = sig;
@@ -170,6 +171,8 @@ function paint(el, j) {
   const embedState = j.embed.state;
   el.innerHTML = `<h3><span>${esc(j.name)}</span><span class="tag">${j.task === "translate" ? "vertimas į anglų" : "transkripcija"}${j.language ? " · " + esc(j.language) : ""} · ${j.cues} segm.</span></h3>
     ${(j.warnings || []).map(w => `<div class="warn">⚠ ${esc(w)}</div>`).join("")}
+    ${(j.speakers || []).length ? `<div class="group">Kalbėtojai (įrašyk vardus ir išsaugok, jie atsiras visuose failuose)</div>
+      <div class="actions">${j.speakers.map(x => `<input type="text" class="spk" data-id="${x.id}" value="${esc(x.name)}" style="width:150px;margin:8px 8px 0 0;font:inherit;padding:6px 9px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--fg)">`).join("")}<button data-act="names">Išsaugoti vardus</button></div>` : ""}
     <div class="actions"><button data-act="copy" class="primary">Kopijuoti tekstą</button><button data-act="view">${expanded.has(j.id) ? "Slėpti transkriptą" : "Rodyti transkriptą"}</button><span class="gap"></span><button data-act="remove">Pašalinti</button></div>
     <div class="group">Atsisiųsti</div>
     <div class="actions">${dl("txt", "Tekstas .txt")}${dl("srt", "Subtitrai .srt")}${dl("vtt", ".vtt")}${dl("ts", "Su laikais")}${dl("json", "JSON (žodžių laikai)")}</div>
@@ -191,7 +194,7 @@ async function showTranscript(el, j) {
   const view = el.querySelector("[data-view]"), find = el.querySelector("[data-find]");
   const data = await transcript(j);
   const draw = q => { const needle = q.trim().toLowerCase();
-    view.innerHTML = data.cues.map(c => `<div class="line${needle && c.text.toLowerCase().includes(needle) ? " hit" : ""}"><time>${hms(c.start)}</time><span>${esc(c.text)}</span></div>`).join("") || "<div class=meta>Kalbos nerasta.</div>"; };
+    view.innerHTML = data.cues.map(c => `<div class="line${needle && c.text.toLowerCase().includes(needle) ? " hit" : ""}"><time>${hms(c.start)}</time><span>${c.speaker !== null ? `<b>${esc(c.speaker_name)}:</b> ` : ""}${esc(c.text)}</span></div>`).join("") || "<div class=meta>Kalbos nerasta.</div>"; };
   draw(""); find.oninput = () => draw(find.value);
 }
 function bind(el, j) {
@@ -201,6 +204,10 @@ function bind(el, j) {
     if (act === "view") { expanded.has(j.id) ? expanded.delete(j.id) : expanded.add(j.id); el.dataset.sig = ""; }
     if (act === "copy") { const t = await (await fetch(`/api/jobs/${j.id}/txt`, {headers: hdr})).text();
       try { await navigator.clipboard.writeText(t); b.textContent = "Nukopijuota"; setTimeout(() => b.textContent = "Kopijuoti tekstą", 1500); } catch (e) { alert("Nepavyko nukopijuoti – naudok „Tekstas .txt“."); } }
+    if (act === "names") {
+      const names = {}; el.querySelectorAll(".spk").forEach(i => { if (i.value.trim()) names[i.dataset.id] = i.value.trim(); });
+      await fetch(`/api/jobs/${j.id}/speakers`, {method: "POST", headers: hdr, body: JSON.stringify({names})}); transcripts.delete(j.id);
+    }
     if (act === "soft" || act === "burn") { const r = await fetch(`/api/jobs/${j.id}/embed?mode=${act}`, {method: "POST", headers: hdr}); const x = await r.json(); if (x.error) alert(x.error); }
     refresh();
   });

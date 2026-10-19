@@ -193,6 +193,21 @@ def main() -> int:
             assert len(data) > 2000, f"{mode}: per mažas video ({len(data)} B)"
             print("  video", mode, "OK", len(data), "B", flush=True)
 
+        # kalbėtojų atskyrimas: du skirtingi balsai (A B A B), nurodyti 2 kalbėtojai
+        talk = os.path.join(HERE, "..", "tests", "data", "two_speakers.wav")
+        with open(talk, "rb") as handle:
+            sjob = json.loads(call("PUT", "/api/upload?name=pokalbis.wav&model=base&language=lt&speakers=2", handle.read()))
+        deadline = time.time() + 1500          # base modelis + ~47 MB diarizacijos modeliai
+        while time.time() < deadline and sjob["state"] not in ("done", "failed"):
+            time.sleep(4)
+            sjob = json.loads(call("GET", f"/api/jobs/{sjob['id']}"))
+        assert sjob["state"] == "done", f"kalbėtojų darbas: {sjob}"
+        speakers = [x["name"] for x in sjob["speakers"]]
+        assert len(speakers) == 2, f"turėjo būti 2 kalbėtojai: {speakers}; įspėjimai: {sjob['warnings']}"
+        spk_txt = call("GET", f"/api/jobs/{sjob['id']}/txt").decode("utf-8")
+        assert "Kalbėtojas 1:" in spk_txt and "Kalbėtojas 2:" in spk_txt, spk_txt[:300]
+        print("  kalbėtojai OK", speakers, flush=True)
+
         print("OK", platform.platform(), "subtitrų:", job["cues"])
         print(srt[:300])
         return 0

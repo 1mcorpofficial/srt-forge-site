@@ -11,13 +11,16 @@ from srtforge_lite.server import App
 SEEN = {}
 
 
-def fake_runner(path, *, model, language, model_dir, prompt, progress, cancelled, task="transcribe"):
+def fake_runner(path, *, model, language, model_dir, prompt, progress, cancelled, task="transcribe", speakers=None, warn=None):
     SEEN["task"] = task
+    SEEN["speakers"] = speakers
     progress("Atpažįstama kalba", 0.5)
     with open(path, "rb") as handle:
         failing = handle.read().startswith(b"FAIL")
     if failing:
         raise RuntimeError("sugadintas failas")
+    if speakers and speakers != "off":
+        return [Cue(0.0, 1.5, "Labas rytas.", speaker=0), Cue(2.0, 3.5, "Kaip sekasi?", speaker=1)], language or "lt", 3.5
     return [Cue(0.0, 1.5, "Labas rytas."), Cue(2.0, 3.5, "Kaip sekasi?")], language or "lt", 3.5
 
 
@@ -124,6 +127,38 @@ class ServerTests(unittest.TestCase):
         status, out, _ = self.call("DELETE", f"/api/jobs/{jid}")
         self.assertEqual((status, json.loads(out)), (200, {"removed": True}))
         self.assertEqual(self.call("GET", f"/api/jobs/{jid}")[0], 404)
+
+    def test_speakers_option_rename_and_labelled_exports(self):
+        _, body, _ = self.call("PUT", "/api/upload?name=a.wav&model=base&speakers=2", b"garsas")
+        jid = json.loads(body)["id"]
+        job = self.wait(jid)
+        self.assertEqual(SEEN["speakers"], "2")
+        self.assertEqual([s["name"] for s in job["speakers"]], ["Kalbėtojas 1", "Kalbėtojas 2"])
+        txt = self.call("GET", f"/api/jobs/{jid}/txt")[1].decode()
+        self.assertIn("Kalbėtojas 1: Labas rytas.", txt)
+        self.assertIn("Kalbėtojas 2: Kaip sekasi?", txt)
+
+        status, renamed, _ = self.call("POST", f"/api/jobs/{jid}/speakers",
+                                       json.dumps({"names": {"0": "Jonas", "1": "Ona"}}).encode())
+        self.assertEqual(status, 200)
+        self.assertEqual([s["name"] for s in json.loads(renamed)["speakers"]], ["Jonas", "Ona"])
+        srt = self.call("GET", f"/api/jobs/{jid}/srt")[1].decode()
+        self.assertIn("Jonas: Labas rytas.", srt)
+        self.assertIn("Ona: Kaip sekasi?", srt)
+        vtt = self.call("GET", f"/api/jobs/{jid}/vtt")[1].decode()
+        self.assertIn("<v Ona>Kaip sekasi?", vtt)
+        doc = json.loads(self.call("GET", f"/api/jobs/{jid}/json")[1])
+        self.assertEqual([x["speaker"] for x in doc["segments"]], ["Jonas", "Ona"])
+        transcript = json.loads(self.call("GET", f"/api/jobs/{jid}/transcript")[1])
+        self.assertEqual(transcript["cues"][1]["speaker_name"], "Ona")
+        self.assertEqual(self.call("POST", f"/api/jobs/{jid}/speakers", b"ne json")[0], 400)
+
+    def test_invalid_speaker_count_is_rejected_and_off_is_default(self):
+        self.assertEqual(self.call("PUT", "/api/upload?name=a.wav&model=base&speakers=99", b"x")[0], 400)
+        self.assertEqual(self.call("PUT", "/api/upload?name=a.wav&model=base&speakers=abc", b"x")[0], 400)
+        _, body, _ = self.call("PUT", "/api/upload?name=a.wav&model=base", b"garsas")
+        job = self.wait(json.loads(body)["id"])
+        self.assertEqual(job["speakers"], [])
 
     def test_system_report_endpoint(self):
         status, body, _ = self.call("GET", "/api/system")

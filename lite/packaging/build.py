@@ -26,6 +26,16 @@ from srtforge_lite import __version__  # noqa: E402
 NAME = "SRT Forge Lite"
 
 
+def ensure_build_deps() -> None:
+    """Papildomos priklausomybės, kurių CI workflow dar neįdiegia (workflow failų su `repo` tokenu keisti negalima)."""
+    for module, requirement in (("sherpa_onnx", "sherpa-onnx>=1.10"),):
+        try:
+            __import__(module)
+        except ImportError:
+            print(f"+ pip install {requirement}", flush=True)
+            subprocess.run([sys.executable, "-m", "pip", "install", "--quiet", requirement], check=True)
+
+
 def run(cmd, **kw):
     print("+", " ".join(map(str, cmd)), flush=True)
     subprocess.run(cmd, check=True, **kw)
@@ -37,7 +47,7 @@ def pyinstaller(workdir: str, windowed: bool) -> str:
            "--specpath", workdir, "--paths", LITE,
            "--collect-all", "faster_whisper", "--collect-all", "ctranslate2", "--collect-all", "av",
            "--collect-all", "imageio_ffmpeg", "--collect-all", "tokenizers", "--collect-all", "onnxruntime",
-           "--collect-all", "certifi", "--collect-data", "srtforge_lite",
+           "--collect-all", "certifi", "--collect-all", "sherpa_onnx", "--collect-data", "srtforge_lite",
            "--hidden-import", "srtforge_lite.server", "--hidden-import", "srtforge_lite.updater",
            "--add-data", os.path.join(LITE, "srtforge_lite", "ui.html") + os.pathsep + "srtforge_lite"]
     if windowed:
@@ -126,6 +136,7 @@ def main() -> int:
     os.makedirs(out, exist_ok=True)
 
     system = platform.system()
+    ensure_build_deps()
     with tempfile.TemporaryDirectory(prefix="srtforge-pyi-") as work:
         dist = pyinstaller(work, windowed=system in ("Windows", "Darwin") and not args.console)
         if args.public_key:

@@ -1,6 +1,6 @@
 import unittest
 
-from srtforge_lite.core import (Cue, Rules, Word, build_cues, drop_hallucinated, find_hallucinations, timestamp,
+from srtforge_lite.core import (Cue, Rules, Turn, Word, assign_speakers, build_cues, drop_hallucinated, find_hallucinations, timestamp,
                                 to_json, to_srt, to_ts, to_txt, to_vtt, wrap)
 
 
@@ -60,6 +60,35 @@ class CueTests(unittest.TestCase):
         doc = json.loads(to_json([cue], "lt", "translate"))
         self.assertEqual((doc["language"], doc["task"]), ("lt", "translate"))
         self.assertEqual(doc["segments"][0]["words"][1], {"word": "rytas", "start": 62.1, "end": 62.9})
+
+    def test_speakers_are_assigned_by_overlap_and_split_cues(self):
+        ws = words("Sveiki aš Jonas.", 0.0) + words("Labas aš Ona.", 2.0)
+        turns = [Turn(0.0, 1.7, 0), Turn(1.9, 3.5, 1)]
+        assign_speakers(ws, turns)
+        self.assertEqual([w.speaker for w in ws], [0, 0, 0, 1, 1, 1])
+        cues = build_cues(ws)
+        self.assertEqual([c.speaker for c in cues], [0, 1])
+        self.assertEqual(cues[1].text, "Labas aš Ona.")
+
+    def test_word_in_a_gap_takes_the_nearest_turn(self):
+        w = [Word("tarpe", 2.05, 2.15)]
+        assign_speakers(w, [Turn(0, 2.0, 3), Turn(5.0, 6.0, 7)])
+        self.assertEqual(w[0].speaker, 3)
+
+    def test_exports_label_speaker_only_when_it_changes(self):
+        cues = [Cue(0, 1, "Labas.", speaker=0), Cue(1.1, 2, "Kaip sekasi?", speaker=0), Cue(2.2, 3, "Gerai.", speaker=1)]
+        names = {0: "Jonas"}
+        self.assertEqual(to_srt(cues, names),
+                         "1\n00:00:00,000 --> 00:00:01,000\nJonas: Labas.\n\n2\n00:00:01,100 --> 00:00:02,000\nKaip sekasi?\n\n"
+                         "3\n00:00:02,200 --> 00:00:03,000\nKalbėtojas 2: Gerai.\n")
+        self.assertEqual(to_txt(cues, names=names), "Jonas: Labas. Kaip sekasi?\n\nKalbėtojas 2: Gerai.\n")
+        self.assertIn("<v Jonas>Labas.", to_vtt(cues, names))
+        self.assertTrue(to_ts(cues, names).startswith("[00:00:00] Jonas: Labas.\n[00:00:01] Kaip"))
+
+    def test_without_speakers_exports_are_unchanged(self):
+        cue = Cue(0, 1, "Labas.")
+        self.assertEqual(to_srt([cue]), "1\n00:00:00,000 --> 00:00:01,000\nLabas.\n")
+        self.assertNotIn("<v", to_vtt([cue]))
 
     def test_wrap_short_untouched(self):
         self.assertEqual(wrap("Trumpas.", Rules()), "Trumpas.")

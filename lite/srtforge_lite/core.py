@@ -1,6 +1,7 @@
 """Gryna (be ML) subtitrų logika: žodžiai -> subtitrai -> SRT/VTT/TXT, haliucinacijų aptikimas."""
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
 from typing import List, Optional
@@ -11,6 +12,7 @@ class Word:
     text: str
     start: float
     end: float
+    speaker: Optional[int] = None
 
 
 @dataclass
@@ -19,6 +21,35 @@ class Cue:
     end: float
     text: str
     words: List[Word] = field(default_factory=list)
+    speaker: Optional[int] = None
+
+
+@dataclass
+class Turn:
+    start: float
+    end: float
+    speaker: int
+
+
+def assign_speakers(words: List[Word], turns: List[Turn]) -> List[Word]:
+    """Kiekvienam žodžiui – kalbėtojas, su kuriuo jo laikas labiausiai persidengia; be persidengimo – artimiausias turnas."""
+    for word in words:
+        best, best_overlap = None, 0.0
+        for turn in turns:
+            overlap = min(word.end, turn.end) - max(word.start, turn.start)
+            if overlap > best_overlap:
+                best, best_overlap = turn.speaker, overlap
+        if best is None and turns:
+            mid = (word.start + word.end) / 2
+            best = min(turns, key=lambda t: min(abs(mid - t.start), abs(mid - t.end))).speaker
+        word.speaker = best
+    return words
+
+
+def speaker_label(speaker: Optional[int], names: Optional[dict] = None) -> str:
+    if speaker is None:
+        return ""
+    return (names or {}).get(speaker) or f"Kalbėtojas {speaker + 1}"
 
 
 @dataclass
@@ -68,15 +99,23 @@ def build_cues(words: List[Word], rules: Optional[Rules] = None) -> List[Cue]:
             too_slow = word.end - current[0].start > rules.max_duration
             paused = word.start - current[-1].end >= rules.split_on_pause
             sentence = _ends_sentence(current[-1].text) and len(" ".join(w.text for w in current)) >= rules.max_line // 2
-            if too_long or too_slow or paused or sentence:
+            changed = word.speaker is not None and current[-1].speaker is not None and word.speaker != current[-1].speaker
+            if too_long or too_slow or paused or sentence or changed:
                 groups.append(current)
                 current = []
         current.append(word)
     if current:
         groups.append(current)
 
+    def majority(group):
+        votes: dict = {}
+        for w in group:
+            if w.speaker is not None:
+                votes[w.speaker] = votes.get(w.speaker, 0) + 1
+        return max(votes, key=votes.get) if votes else None
+
     cues = [
-        Cue(g[0].start, max(g[-1].end, g[0].start + 0.05), wrap(" ".join(w.text for w in g), rules), g)
+        Cue(g[0].start, max(g[-1].end, g[0].start + 0.05), wrap(" ".join(w.text for w in g), rules), g, majority(g))
         for g in groups
     ]
     for i, cue in enumerate(cues):
@@ -93,45 +132,65 @@ def timestamp(seconds: float, sep: str = ",") -> str:
     return f"{ms // 3_600_000:02d}:{ms % 3_600_000 // 60_000:02d}:{ms % 60_000 // 1000:02d}{sep}{ms % 1000:03d}"
 
 
-def to_srt(cues: List[Cue]) -> str:
-    return "\n\n".join(f"{i}\n{timestamp(c.start)} --> {timestamp(c.end)}\n{c.text}" for i, c in enumerate(cues, 1)) + "\n"
+def _prefix(cues: List[Cue], index: int, names: Optional[dict]) -> str:
+    """„Vardas: “ rodomas, kai kalbėtojas pasikeičia (arba pirmame subtitre)."""
+    speaker = cues[index].speaker
+    if speaker is None or (index > 0 and cues[index - 1].speaker == speaker):
+        return ""
+    return speaker_label(speaker, names) + ": "
 
 
-def to_vtt(cues: List[Cue]) -> str:
-    body = "\n\n".join(f"{timestamp(c.start, '.')} --> {timestamp(c.end, '.')}\n{c.text}" for c in cues)
-    return "WEBVTT\n\n" + body + "\n"
+def to_srt(cues: List[Cue], names: Optional[dict] = None) -> str:
+    return "\n\n".join(
+        f"{i}\n{timestamp(c.start)} --> {timestamp(c.end)}\n{_prefix(cues, i - 1, names)}{c.text}"
+        for i, c in enumerate(cues, 1)) + "\n"
 
 
-def to_txt(cues: List[Cue], paragraph_gap: float = 1.5) -> str:
-    """Skaitomas tekstas: tilpimas į pastraipas ties ilgesnėmis pauzėmis."""
+def to_vtt(cues: List[Cue], names: Optional[dict] = None) -> str:
+    def body(c: Cue) -> str:
+        return f"<v {speaker_label(c.speaker, names)}>{c.text}" if c.speaker is not None else c.text
+
+    parts = "\n\n".join(f"{timestamp(c.start, '.')} --> {timestamp(c.end, '.')}\n{body(c)}" for c in cues)
+    return "WEBVTT\n\n" + parts + "\n"
+
+
+def to_txt(cues: List[Cue], paragraph_gap: float = 1.5, names: Optional[dict] = None) -> str:
+    """Skaitomas tekstas: pastraipos ties ilgesnėmis pauzėmis ir kalbėtojo pasikeitimu."""
     paragraphs: List[str] = []
     current: List[str] = []
     for index, cue in enumerate(cues):
-        if current and cue.start - cues[index - 1].end >= paragraph_gap:
+        if current and (cue.start - cues[index - 1].end >= paragraph_gap or
+                        (cue.speaker is not None and cue.speaker != cues[index - 1].speaker)):
             paragraphs.append(" ".join(current))
             current = []
-        current.append(cue.text.replace("\n", " ").strip())
+        piece = cue.text.replace("\n", " ").strip()
+        if not current:
+            piece = _prefix(cues, index, names) + piece
+        current.append(piece)
     if current:
         paragraphs.append(" ".join(current))
     return "\n\n".join(paragraphs) + "\n"
 
 
-def to_ts(cues: List[Cue]) -> str:
-    """Tekstas su laiko žymomis: [00:01:02] sakinys."""
-    return "\n".join(f"[{timestamp(c.start).split(',')[0]}] {c.text.replace(chr(10), ' ')}" for c in cues) + "\n"
+def to_ts(cues: List[Cue], names: Optional[dict] = None) -> str:
+    """Tekstas su laiko žymomis: [00:01:02] Vardas: sakinys."""
+    return "\n".join(
+        f"[{timestamp(c.start).split(',')[0]}] {_prefix(cues, i, names)}{c.text.replace(chr(10), ' ')}"
+        for i, c in enumerate(cues)) + "\n"
 
 
-def to_json(cues: List[Cue], language: Optional[str] = None, task: str = "transcribe") -> str:
-    """Segmentai ir žodžių laikai (kūrėjams / tolesniam apdorojimui)."""
-    import json
+def to_json(cues: List[Cue], language: Optional[str] = None, task: str = "transcribe", names: Optional[dict] = None) -> str:
+    """Segmentai, kalbėtojai ir žodžių laikai (kūrėjams / tolesniam apdorojimui)."""
+    def segment(index: int, c: Cue) -> dict:
+        item = {"id": index, "start": round(c.start, 3), "end": round(c.end, 3), "text": c.text.replace("\n", " ")}
+        if c.speaker is not None:
+            item["speaker"] = speaker_label(c.speaker, names)
+            item["speaker_id"] = c.speaker
+        item["words"] = [{"word": w.text, "start": round(w.start, 3), "end": round(w.end, 3)} for w in c.words]
+        return item
 
-    return json.dumps({
-        "language": language, "task": task,
-        "segments": [{
-            "id": index, "start": round(c.start, 3), "end": round(c.end, 3), "text": c.text.replace("\n", " "),
-            "words": [{"word": w.text, "start": round(w.start, 3), "end": round(w.end, 3)} for w in c.words],
-        } for index, c in enumerate(cues)],
-    }, ensure_ascii=False, indent=2) + "\n"
+    return json.dumps({"language": language, "task": task, "segments": [segment(i, c) for i, c in enumerate(cues)]},
+                      ensure_ascii=False, indent=2) + "\n"
 
 
 _TOKEN = re.compile(r"\w+", re.UNICODE)

@@ -105,6 +105,8 @@ def transcribe(
     model_dir: Optional[str] = None,
     prompt: Optional[str] = None,
     task: str = "transcribe",
+    speakers: Optional[str] = None,
+    warn: Optional[Callable[[str], None]] = None,
     rules: Optional[Rules] = None,
     progress: Optional[Callable[[str, float], None]] = None,
     cancelled: Callable[[], bool] = lambda: False,
@@ -140,9 +142,33 @@ def transcribe(
                 words.append(Word(w.word.strip(), float(w.start), float(w.end)))
             say("Atpažįstama kalba", 0.1 + 0.85 * min(1.0, segment.end / duration))
 
-        say("Formuojami subtitrai", 0.97)
         words = [w for w in words if w.text]
+        if speakers and speakers != "off" and words:
+            try:
+                from .core import assign_speakers
+                from .diarize import diarize
+
+                count = None if speakers == "auto" else int(speakers)
+                turns = diarize(wav, count, progress=lambda stage, value: say(stage, 0.95 + 0.02 * value))
+                assign_speakers(words, turns)
+            except Exception as error:  # noqa: BLE001 - kalbėtojų skyrimas nėra kritinis
+                for word in words:
+                    word.speaker = None
+                if warn:
+                    warn(f"Kalbėtojų atskirti nepavyko: {error}")
+                _log_failure("diarizacija", error)
+
+        say("Formuojami subtitrai", 0.97)
         return build_cues(words, rules), info.language, info.duration
+
+
+def _log_failure(what: str, error: Exception) -> None:
+    try:
+        from .server import _log_exception
+
+        _log_exception(f"{what}: {error}")
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def has_video(path: str) -> bool:
