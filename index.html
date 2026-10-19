@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="lt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SRT Forge — įrašas įeina, subtitrai išeina</title>
+<meta name="description" content="SRT Forge Lite paverčia garso ir video failus subtitrais tavo kompiuteryje. Windows, macOS ir Linux. Be paskyros ir be debesies.">
+<meta name="theme-color" content="#e9eef2">
+<link rel="preload" href="fonts/bricolage-latin-ext.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+@font-face{font-family:"Bricolage";font-weight:200 800;font-display:swap;src:url(fonts/bricolage-latin-ext.woff2) format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:"Bricolage";font-weight:200 800;font-display:swap;src:url(fonts/bricolage-latin.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+
+:root{
+  --paper:#e9eef2; --ink:#0a1b2e; --mute:#566879; --line:#c9d3dc; --frame:#07131f; --cue:#ffd23f; --cue-ink:#1a1500; --playhead:#e8453c;
+  --display:"Bricolage","Helvetica Neue",Arial,sans-serif; --text:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --rail:172px;
+}
+@media (prefers-color-scheme:dark){:root{--paper:#08121d; --ink:#e9eef2; --mute:#8fa1b2; --line:#1d2e3f; --frame:#030a11}}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:56px}
+body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.6 var(--text);-webkit-font-smoothing:antialiased}
+a{color:inherit}
+:focus-visible{outline:3px solid var(--playhead);outline-offset:3px}
+.sr{position:absolute;left:-9999px}
+
+/* —— laiko juosta (navigacija pagal „laiką“) —— */
+.rail{position:fixed;left:0;top:0;bottom:0;width:var(--rail);padding:28px 0 28px 24px;display:none;flex-direction:column;z-index:5;pointer-events:none}
+.rail *{pointer-events:auto}
+.clock{font:700 15px/1 var(--display);font-variant-numeric:tabular-nums;letter-spacing:.01em}
+.track{position:relative;flex:1;margin:18px 0 0 6px;width:2px;background:var(--line)}
+.track i{position:absolute;left:0;top:0;width:2px;background:var(--playhead);height:0}
+.track b{position:absolute;left:-5px;width:12px;height:12px;border-radius:50%;background:var(--playhead);top:0;transform:translateY(-6px)}
+.mark{position:absolute;left:16px;font:600 12.5px/1.2 var(--display);color:var(--mute);text-decoration:none;white-space:nowrap;transform:translateY(-50%)}
+.mark:hover,.mark.on{color:var(--ink)}
+.topbar{position:sticky;top:0;z-index:5;background:var(--paper);border-bottom:1px solid var(--line);padding:10px 20px;display:flex;justify-content:space-between;align-items:center;font:700 14px var(--display)}
+.topbar .clock{font-size:14px}
+@media (min-width:1000px){.rail{display:flex}.topbar{display:none}main{margin-left:var(--rail)}}
+
+main{max-width:calc(1120px + var(--rail));padding:0 24px 0 24px}
+@media (min-width:1000px){main{padding-right:48px}}
+
+/* —— kadras —— */
+.stage{padding:28px 0 0}
+.frame{position:relative;aspect-ratio:2.39/1;background:var(--frame);border-radius:6px;overflow:hidden;box-shadow:0 30px 60px -30px rgba(7,19,31,.55)}
+.frame canvas{position:absolute;inset:0;width:100%;height:100%}
+.tc{position:absolute;left:16px;top:12px;font:700 13px var(--display);font-variant-numeric:tabular-nums;color:#9fb3c6;letter-spacing:.02em}
+.rec{position:absolute;right:16px;top:12px;font:700 13px var(--display);color:#9fb3c6;display:flex;align-items:center;gap:6px}
+.rec::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--playhead)}
+.sub{position:absolute;left:6%;right:6%;bottom:11%;text-align:center;font:700 clamp(15px,2.6vw,30px)/1.25 Arial,"Helvetica Neue",Helvetica,sans-serif;color:var(--cue);white-space:pre-line;text-shadow:0 0 3px #000,0 0 3px #000,2px 2px 0 #000,-2px -2px 0 #000,2px -2px 0 #000,-2px 2px 0 #000;min-height:2.5em;display:flex;align-items:flex-end;justify-content:center}
+.cue-meta{margin:10px 2px 0;font:600 13px var(--display);font-variant-numeric:tabular-nums;color:var(--mute)}
+.cue-meta span{color:var(--ink)}
+
+h1{font:800 clamp(44px,9.2vw,128px)/.92 var(--display);letter-spacing:-.04em;margin:42px 0 0;max-width:12ch}
+.lead{font-size:clamp(18px,2vw,22px);max-width:46ch;margin:26px 0 0}
+.actions{display:flex;flex-wrap:wrap;gap:16px 22px;align-items:center;margin:32px 0 0}
+.go{display:inline-block;font:700 19px var(--display);padding:18px 30px;border-radius:999px;background:var(--ink);color:var(--paper);text-decoration:none;border:0;cursor:pointer;transition:background .15s,color .15s}
+.go:hover{background:var(--cue);color:var(--cue-ink)}
+.small{font-size:14px;color:var(--mute)}
+
+section{padding:120px 0 0}
+h2{font:800 clamp(34px,5.4vw,64px)/.98 var(--display);letter-spacing:-.035em;margin:0 0 14px;max-width:16ch}
+.intro{color:var(--mute);max-width:52ch;margin:0 0 44px}
+
+/* —— atsisiuntimai: eilutės, ne kortelės —— */
+.rows{border-top:2px solid var(--ink)}
+.row{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) auto;gap:8px 28px;align-items:center;padding:26px 14px;border-bottom:1px solid var(--line);position:relative;transition:background .15s}
+.row:hover{background:color-mix(in srgb,var(--cue) 28%,transparent)}
+.row.mine{background:var(--cue);color:var(--cue-ink)}
+.row.mine .small,.row.mine .meta{color:#4a4000}
+.os{font:800 clamp(30px,4.6vw,56px)/1 var(--display);letter-spacing:-.03em}
+.os small{display:block;font:600 14px var(--text);letter-spacing:0;color:var(--mute);margin-top:6px}
+.row.mine .os small{color:#4a4000}
+.meta{font-size:14.5px;color:var(--mute)}
+.dls{display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end}
+.dl{display:inline-block;font:700 16px var(--display);padding:13px 22px;border-radius:999px;border:2px solid currentColor;text-decoration:none;white-space:nowrap}
+.dl:hover{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.row.mine .dl{background:var(--ink);color:var(--cue);border-color:var(--ink)}
+.dl[aria-disabled=true]{opacity:.5;pointer-events:none}
+@media (max-width:760px){.row{grid-template-columns:1fr}.dls{justify-content:flex-start}}
+.hash{font:12.5px/1.4 var(--text);color:var(--mute);margin-top:8px;word-break:break-all}
+
+details.cmd{margin-top:28px;border-top:1px solid var(--line);padding-top:14px}
+details summary{cursor:pointer;font:700 17px var(--display)}
+pre{background:var(--frame);color:#cfe0ef;border-radius:8px;padding:14px 16px;overflow-x:auto;font:13.5px/1.55 ui-monospace,Menlo,Consolas,monospace}
+
+/* —— pirmas paleidimas —— */
+.flow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:56px;align-items:start}
+@media (max-width:900px){.flow{grid-template-columns:1fr;gap:36px}}
+.steps{list-style:none;margin:0;padding:0;border-left:2px solid var(--ink)}
+.steps li{padding:0 0 30px 26px;position:relative}
+.steps li::before{content:"";position:absolute;left:-7px;top:6px;width:12px;height:12px;border-radius:50%;background:var(--playhead)}
+.steps time{display:block;font:700 14px var(--display);font-variant-numeric:tabular-nums;color:var(--mute);margin-bottom:2px}
+.steps b{font:800 22px/1.2 var(--display);letter-spacing:-.02em}
+.steps p{margin:4px 0 0;color:var(--mute);max-width:44ch}
+.panel{background:var(--frame);color:#d7e4f0;border-radius:10px;padding:22px 24px;box-shadow:0 30px 60px -34px rgba(7,19,31,.6);font-size:15.5px}
+.panel h3{margin:0 0 6px;font:700 17px var(--display);color:#fff}
+.panel .pm{color:#8fa6bb;font-size:14px}
+.ok{margin-top:12px;padding:12px 14px;border-left:4px solid var(--cue);background:rgba(255,210,63,.09);color:#fff}
+.warn{margin-top:10px;color:var(--cue);font-size:14px}
+.cap{margin:10px 2px 0;font-size:13px;color:var(--mute)}
+
+/* —— tikslumas —— */
+.scale{display:grid;gap:10px}
+.m{display:grid;grid-template-columns:120px 1fr minmax(120px,170px);gap:16px;align-items:center}
+.m b{font:700 17px var(--display)}
+.bar{height:26px;background:var(--line);border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--ink)}
+.m span{font-size:14px;color:var(--mute)}
+@media (max-width:640px){.m{grid-template-columns:90px 1fr}.m span{grid-column:1/-1;margin-top:-6px}}
+
+/* —— DUK —— */
+.faq details{border-top:1px solid var(--line);padding:4px 0}
+.faq details:last-child{border-bottom:1px solid var(--line)}
+.faq summary{padding:18px 0}
+.faq p{margin:0 0 18px;color:var(--mute);max-width:62ch}
+footer{padding:100px 0 64px;color:var(--mute);font-size:14px}
+footer a{color:var(--ink)}
+
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="topbar" aria-hidden="true"><span>SRT Forge</span><span class="clock" data-clock>00:00:00,000</span></div>
+<aside class="rail" aria-label="Puslapio laiko juosta">
+  <div class="clock" data-clock>00:00:00,000</div>
+  <div class="track" id="track"><i></i><b></b></div>
+</aside>
+
+<main>
+  <div class="stage" id="kadras">
+    <div class="frame" role="img" aria-label="Pavyzdys: bangos forma ir geltoni subtitrai kino kadre">
+      <canvas id="wave"></canvas>
+      <div class="tc" id="tc">00:00:00,000</div>
+      <div class="rec">Gyvai</div>
+      <div class="sub" id="sub"></div>
+    </div>
+    <p class="cue-meta" id="cuemeta" aria-hidden="true">&nbsp;</p>
+
+    <h1>Įrašas įeina. Subtitrai išeina.</h1>
+    <p class="lead">SRT Forge Lite paverčia garso ir video failus subtitrais tavo kompiuteryje. Be paskyros, be debesies, be mokesčių.</p>
+    <div class="actions">
+      <a class="go" id="main-dl" href="#atsisiuntimai">Pasirinkti atsisiuntimą</a>
+      <span class="small" id="main-hint">Windows, macOS ir Linux</span>
+    </div>
+  </div>
+
+  <section id="atsisiuntimai">
+    <h2>Pasirink savo kompiuterį</h2>
+    <p class="intro">Atsisiunti vieną failą ir jį paleidi. Python ar kitų programų diegti nereikia.</p>
+    <div class="rows" id="rows"></div>
+    <p class="small" id="dl-note" style="margin-top:16px"></p>
+
+    <details class="cmd" id="cmd">
+      <summary>Diegimas viena komanda (pažengusiems)</summary>
+      <p class="small">Windows, PowerShell:</p>
+      <pre><code>irm https://srt.1millionads.net/install.ps1 | iex</code></pre>
+      <p class="small">macOS ir Linux, Terminal:</p>
+      <pre><code>curl -fsSL https://srt.1millionads.net/install.sh | sh</code></pre>
+    </details>
+    <details class="cmd">
+      <summary>Operacinė sistema rodo įspėjimą?</summary>
+      <p class="small"><b>Windows.</b> Programa dar neturi mokamo „Microsoft“ sertifikato, todėl pirmą kartą „SmartScreen“ gali įspėti. Spustelėk <b>Daugiau informacijos</b>, tada <b>Vis tiek vykdyti</b>.</p>
+      <p class="small"><b>macOS.</b> Nutempk programą į Applications, tada spustelėk ją dešiniu pelės klavišu ir pasirink <b>Open</b>. Reikia tik pirmą kartą. Jei neleidžia, <b>System Settings → Privacy &amp; Security → Open Anyway</b>.</p>
+      <p class="small"><b>Linux.</b> Išarchyvuok failą ir paleisk <code>Install.sh</code>. Sudo nereikia.</p>
+    </details>
+  </section>
+
+  <section id="paleidus">
+    <div class="flow">
+      <div>
+        <h2>Pirmas paleidimas</h2>
+        <p class="intro">Programa pirmiausia apžiūri kompiuterį, o ne puola siųstis. Jei Whisper modelis jau yra, naudoja jį.</p>
+        <ol class="steps">
+          <li><time>00:00</time><b>Patikrina kompiuterį</b><p>Atmintį, laisvą vietą ir vaizdo plokštę. Pagal tai parenka modelį.</p></li>
+          <li><time>00:05</time><b>Suranda turimus modelius</b><p>Žiūri į HuggingFace talpyklą ir kitus įprastus katalogus. Jei tinkamas modelis yra, nieko nesiunčia.</p></li>
+          <li><time>00:10</time><b>Tu nutempi įrašą</b><p>Garsas arba video. Galima kelis failus iš karto.</p></li>
+          <li><time>02:40</time><b>Gauni SRT, VTT ir TXT</b><p>Tyla pašalinama prieš atpažįstant, o pasikartojančios haliucinacijos pažymimos.</p></li>
+        </ol>
+      </div>
+      <div>
+        <div class="panel" role="img" aria-label="Pavyzdys, kaip atrodo sistemos patikra pirmo paleidimo metu">
+          <h3>Sistemos patikra</h3>
+          <div class="pm">16 GB RAM · 10 gijų · Apple Silicon · laisva vieta 212 GB</div>
+          <div class="ok">Radau jau turimą modelį „large-v3“ (HuggingFace talpykla). Naudosiu jį, nieko atsisiųsti nereikia.</div>
+          <div class="warn">Rastas kito įrankio modelis (whisper.cpp): ggml-large-v3.bin. Lite naudoja kitą formatą, todėl jo nenaudos.</div>
+        </div>
+        <p class="cap">Pavyzdys. Tavo kompiuteryje skaičiai ir rasti modeliai bus kiti.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="tikslumas">
+    <h2>Greičiau ar tiksliau</h2>
+    <p class="intro">Programa pati pasiūlo modelį pagal tavo atmintį. Lange gali pasirinkti kitą.</p>
+    <div class="scale">
+      <div class="m"><b>base</b><div class="bar"><i style="width:5%"></i></div><span>~145 MB · nuo 1 GB RAM</span></div>
+      <div class="m"><b>small</b><div class="bar"><i style="width:16%"></i></div><span>~480 MB · nuo 2 GB</span></div>
+      <div class="m"><b>medium</b><div class="bar"><i style="width:48%"></i></div><span>~1,5 GB · nuo 5 GB</span></div>
+      <div class="m"><b>large-v3-turbo</b><div class="bar"><i style="width:52%"></i></div><span>~1,6 GB · nuo 6 GB</span></div>
+      <div class="m"><b>large-v3</b><div class="bar"><i style="width:100%"></i></div><span>~3 GB · nuo 8 GB, tiksliausias</span></div>
+    </div>
+  </section>
+
+  <section id="duk" class="faq">
+    <h2>Dažni klausimai</h2>
+    <details><summary>Ar reikia interneto?</summary><p>Tik diegimui ir vienkartiniam modelio atsisiuntimui, jei jo dar neturi. Vėliau programa dirba be interneto.</p></details>
+    <details><summary>Ar įrašai kur nors siunčiami?</summary><p>Ne. Atpažinimas vyksta tavo kompiuteryje, o programa klauso tik vietinio adreso 127.0.0.1.</p></details>
+    <details><summary>Kaip atnaujinti?</summary><p>Naujai versijai pasirodžius programa parodo pranešimą, atsisiunčia failą, patikrina jo Ed25519 parašą ir sha256 ir paleidžia diegimą.</p></details>
+    <details><summary>Kaip pašalinti?</summary><p>Windows: Nustatymai → Programos → SRT Forge Lite. macOS: nutempk programą į Trash. Linux: ištrink <code>~/.local/share/srtforge-lite</code> ir meniu įrašą. Atsisiųsti modeliai lieka HuggingFace talpykloje.</p></details>
+    <details><summary>Android ir iPhone?</summary><p>Android programa kuriama. iPhone nepalaikomas: Apple neleidžia paprasto diegimo be App Store.</p></details>
+  </section>
+
+  <footer>SRT Forge Lite 0.1.0 · <a href="lite/latest.json">latest.json</a> · <a href="downloads.json">downloads.json</a></footer>
+</main>
+
+<script>
+"use strict";
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const $ = s => document.querySelector(s);
+const tcFmt = s => { const ms = Math.max(0, Math.round(s * 1000)); const p = (n, w) => String(n).padStart(w, "0");
+  return `${p(Math.floor(ms / 3600000), 2)}:${p(Math.floor(ms % 3600000 / 60000), 2)}:${p(Math.floor(ms % 60000 / 1000), 2)},${p(ms % 1000, 3)}`; };
+
+/* —— kadras: bangos forma + subtitrai, sinchronizuoti vienu laikrodžiu —— */
+const CUES = [
+  [0.4, 3.2, "Nutempk įrašą."],
+  [3.7, 7.1, "Programa pati susiranda\njau turimą modelį."],
+  [7.6, 10.8, "Po kelių minučių\ngauni subtitrus."],
+  [11.3, 13.6, "SRT, VTT, TXT."]
+];
+const LOOP = 15;
+const canvas = $("#wave"), g = canvas.getContext("2d");
+let W = 0, H = 0, dpr = 1;
+function size() { dpr = Math.min(devicePixelRatio || 1, 2); W = canvas.clientWidth; H = canvas.clientHeight; canvas.width = W * dpr; canvas.height = H * dpr; g.setTransform(dpr, 0, 0, dpr, 0, 0); }
+addEventListener("resize", size); size();
+
+// Deterministinė „kalbos“ gaubtinė: balso pliūpsniai pagal subtitrų laikus, tarp jų tyla.
+const N = 220;
+const env = Array.from({length: N}, (_, i) => {
+  const t = i / N * LOOP;
+  const inCue = CUES.some(c => t >= c[0] && t <= c[1]);
+  const r = Math.abs(Math.sin(i * 12.9898) * 43758.5453) % 1;
+  const syll = 0.35 + 0.65 * Math.abs(Math.sin(i * 0.9 + r * 2));
+  return inCue ? syll * (0.55 + 0.45 * r) : 0.04 + 0.03 * r;
+});
+
+function draw(t) {
+  g.clearRect(0, 0, W, H);
+  const mid = H * 0.5, bw = W / N;
+  for (let i = 0; i < N; i++) {
+    const x = i * bw, played = i / N * LOOP <= t;
+    const h = Math.max(2, env[i] * H * 0.46);
+    g.fillStyle = played ? "#ffd23f" : "rgba(159,179,198,.38)";
+    g.fillRect(x + bw * 0.2, mid - h, bw * 0.6, h * 2);
+  }
+  const px = t / LOOP * W;
+  g.fillStyle = "#e8453c"; g.fillRect(px - 1, 0, 2, H);
+}
+function frame(t) {
+  draw(t);
+  $("#tc").textContent = tcFmt(t);
+  const i = CUES.findIndex(c => t >= c[0] && t <= c[1]);
+  $("#sub").textContent = i >= 0 ? CUES[i][2] : "";
+  $("#cuemeta").innerHTML = i >= 0
+    ? `<span>${i + 1}</span>&nbsp;&nbsp;${tcFmt(CUES[i][0])} --> ${tcFmt(CUES[i][1])}` : "&nbsp;";
+}
+if (reduce) { frame(8.4); }
+else { let start = performance.now(); (function tick(now) { frame(((now - start) / 1000) % LOOP); requestAnimationFrame(tick); })(start); }
+
+/* —— šoninė laiko juosta: slinkimas = laikas —— */
+const SECTIONS = [["kadras", "Kadras"], ["atsisiuntimai", "Atsisiuntimai"], ["paleidus", "Paleidimas"], ["tikslumas", "Tikslumas"], ["duk", "Klausimai"]];
+const TOTAL = 180;
+const track = $("#track"), fill = track.querySelector("i"), head = track.querySelector("b");
+SECTIONS.forEach(([id, label]) => { const a = document.createElement("a"); a.className = "mark"; a.href = "#" + id; a.dataset.id = id; a.textContent = label; track.appendChild(a); });
+function layoutMarks() {
+  const total = document.documentElement.scrollHeight, h = track.clientHeight;
+  track.querySelectorAll(".mark").forEach(m => { const y = document.getElementById(m.dataset.id).getBoundingClientRect().top + scrollY;
+    m.style.top = Math.min(0.97, y / total) * h + "px"; });
+}
+let queued = false;
+function onScroll() {
+  if (queued) return; queued = true;
+  requestAnimationFrame(() => { queued = false;
+    const max = document.documentElement.scrollHeight - innerHeight, f = max > 0 ? Math.min(1, scrollY / max) : 0;
+    document.querySelectorAll("[data-clock]").forEach(e => e.textContent = tcFmt(f * TOTAL));
+    fill.style.height = f * track.clientHeight + "px"; head.style.top = f * track.clientHeight + "px";
+    let on = SECTIONS[0][0];
+    SECTIONS.forEach(([id]) => { if (document.getElementById(id).getBoundingClientRect().top < innerHeight * 0.4) on = id; });
+    track.querySelectorAll(".mark").forEach(m => m.classList.toggle("on", m.dataset.id === on));
+  });
+}
+addEventListener("scroll", onScroll, {passive: true}); addEventListener("resize", () => { layoutMarks(); onScroll(); });
+addEventListener("load", () => { layoutMarks(); onScroll(); }); layoutMarks(); onScroll();
+
+/* —— atsisiuntimai —— */
+const OS = (() => { const u = navigator.userAgent.toLowerCase();
+  return u.includes("android") ? "android" : u.includes("win") ? "windows" : (u.includes("mac") && !u.includes("iphone") && !u.includes("ipad")) ? "macos"
+    : (u.includes("iphone") || u.includes("ipad")) ? "ios" : "linux"; })();
+const META = {
+  windows: ["Windows", "10 ir 11, 64 bit"], macos: ["macOS", "13 ar naujesnė"],
+  linux: ["Linux", "Debian, Ubuntu, Fedora, Arch"], android: ["Android", "programa kuriama"]
+};
+const mb = n => n >= 1e9 ? (n / 1e9).toFixed(1).replace(".", ",") + " GB" : Math.round(n / 1e6) + " MB";
+const SHORT = {"windows-x64": "Atsisiųsti .exe", "macos-arm64": "Apple Silicon", "macos-x64": "Intel", "linux-x64": "Atsisiųsti .tar.gz"};
+const el = (t, p = {}, ...k) => { const e = Object.assign(document.createElement(t), p); k.forEach(c => e.append(c)); return e; };
+
+(async function () {
+  let data = null;
+  try { const r = await fetch("downloads.json", {cache: "no-store"}); if (r.ok) data = await r.json(); } catch (e) {}
+  const files = ((data && data.files) || []).filter(f => /^https:\/\//.test(f.url));
+  const rows = $("#rows");
+  for (const os of ["windows", "macos", "linux", "android"]) {
+    const mine = os === OS;
+    const list = files.filter(f => f.platform === os);
+    const row = el("div", {className: "row" + (mine ? " mine" : "")});
+    row.append(el("div", {className: "os"}, META[os][0], el("small", {textContent: META[os][1] + (mine ? " · tavo kompiuteris" : "")})));
+    row.append(el("div", {className: "meta", textContent: list.length ? `${mb(Math.max(...list.map(f => f.size)))} · parašas ir SHA-256 patikrinami` : (os === "android" ? "Netrukus" : "Paketas ruošiamas")}));
+    const dls = el("div", {className: "dls"});
+    if (list.length) list.forEach(f => { const key = f.platform + "-" + f.arch;
+      const a = el("a", {className: "dl", href: f.url, textContent: SHORT[key] || "Atsisiųsti"}); a.setAttribute("download", ""); a.title = "SHA-256: " + f.sha256; dls.append(a); });
+    else { const na = el("span", {className: "dl", textContent: os === "android" ? "Netrukus" : "Ruošiama"}); na.setAttribute("aria-disabled", "true"); dls.append(na); }
+    row.append(dls); rows.append(row);
+  }
+  const best = files.filter(f => f.platform === OS)[0] || files.find(f => f.platform === "windows");
+  if (best) { const a = $("#main-dl"); a.href = best.url; a.setAttribute("download", ""); a.textContent = "Atsisiųsti " + META[best.platform][0];
+    $("#main-hint").textContent = `Versija ${data.version} · ${mb(best.size)}`; }
+  else { $("#main-hint").textContent = OS === "android" || OS === "ios" ? "Telefonams programos dar nėra, atsisiųsk kompiuteriui" : "Paketai ruošiami, žemiau yra diegimas viena komanda";
+         $("#cmd").open = true; }
+  if (data) $("#dl-note").textContent = `Versija ${data.version}. Kiekvienas failas pasirašytas Ed25519 raktu; SHA-256 rodomas užvedus pelę.`;
+  layoutMarks(); onScroll();
+})();
+</script>
+</body>
+</html>

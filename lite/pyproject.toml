@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "srtforge-lite"
+dynamic = ["version"]
+description = "SRT Forge Lite: vietinė garso/video transkripcija į subtitrus (Windows, macOS, Linux)"
+requires-python = ">=3.9"
+dependencies = ["faster-whisper>=1.0", "imageio-ffmpeg>=0.4", "cryptography>=41"]
+
+[project.scripts]
+srtforge = "srtforge_lite.server:main"
+
+[tool.setuptools]
+packages = ["srtforge_lite"]
+
+[tool.setuptools.dynamic]
+version = {attr = "srtforge_lite.__version__"}
+
+[tool.setuptools.package-data]
+srtforge_lite = ["ui.html", "update_public_key.txt"]

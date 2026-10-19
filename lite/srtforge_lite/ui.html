@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="lt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SRT Forge Lite</title>
+<style>
+:root{--bg:#f6f5f2;--fg:#1c1b19;--muted:#6b6a66;--card:#fff;--line:#e3e1db;--accent:#1f6f5c;--accent-fg:#fff;--warn:#9a5b00;--err:#b3261e}
+@media (prefers-color-scheme:dark){:root{--bg:#161614;--fg:#eceae4;--muted:#9a978f;--card:#1f1e1b;--line:#33312c;--accent:#4cb89c;--accent-fg:#0d1f1a;--warn:#e0a24a;--err:#f2827a}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}
+main{max-width:720px;margin:0 auto;padding:32px 16px 64px}
+h1{font-size:22px;margin:0 0 4px}p.sub{margin:0 0 24px;color:var(--muted)}
+.drop{border:2px dashed var(--line);border-radius:14px;background:var(--card);padding:40px 16px;text-align:center;cursor:pointer;transition:border-color .15s}
+.drop.over{border-color:var(--accent)}.drop b{display:block;font-size:17px;margin-bottom:4px}.drop span{color:var(--muted)}
+.row{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0}label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);flex:1;min-width:160px}
+select,input[type=text]{font:inherit;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--fg)}
+.job{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-top:12px}
+.job h3{margin:0 0 6px;font-size:15px;word-break:break-all}.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);width:0;transition:width .3s}
+.meta{font-size:13px;color:var(--muted);margin-top:6px}.warn{color:var(--warn);font-size:13px;margin-top:6px}.err{color:var(--err);margin-top:6px}
+a.btn,button{font:inherit;padding:7px 14px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer;text-decoration:none;display:inline-block;margin:8px 8px 0 0}
+a.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+footer{margin-top:32px;color:var(--muted);font-size:12px}
+</style>
+</head>
+<body>
+<main>
+  <h1>SRT Forge Lite</h1>
+  <p class="sub">Garso ir video transkripcija į subtitrus. Viskas vyksta tavo kompiuteryje, failai niekur nesiunčiami.</p>
+
+  <div class="job" id="update" hidden style="margin:0 0 16px"><b id="update-text"></b>
+    <button id="update-btn" class="primary" style="margin-left:8px">Atsisiųsti ir įdiegti</button><span class="meta" id="update-msg"></span></div>
+
+  <div class="drop" id="drop" tabindex="0"><b>Nutempk garso ar video failą čia</b><span>arba spustelėk, kad pasirinktum</span>
+    <input type="file" id="file" accept="audio/*,video/*" multiple hidden></div>
+
+  <div class="job" id="syscheck" hidden style="margin:0 0 16px"><b>Sistemos patikra</b>
+    <div class="meta" id="sys-line"></div><div id="sys-msg" style="margin-top:6px"></div><div class="warn" id="sys-other"></div></div>
+
+  <div class="row">
+    <label>Kalba<select id="language"><option value="lt">Lietuvių</option><option value="en">English</option><option value="lv">Latviešu</option><option value="et">Eesti</option><option value="pl">Polski</option><option value="ru">Русский</option><option value="de">Deutsch</option><option value="auto">Atpažinti automatiškai</option></select></label>
+    <label>Modelis<select id="model"></select></label>
+    <label>Vardai ir terminai (nebūtina)<input type="text" id="prompt" placeholder="pvz. Jonas, Pricelio, Kaunas"></label>
+  </div>
+
+  <div id="jobs"></div>
+  <footer>Versija __VERSION__ · tik šis kompiuteris (127.0.0.1)</footer>
+</main>
+<script>
+const T = "__TOKEN__";
+const $ = id => document.getElementById(id);
+const hdr = {"X-Token": T};
+let info = null;
+
+async function boot() {
+  info = await (await fetch("/api/info", {headers: hdr})).json();
+  const sys = await (await fetch("/api/system", {headers: hdr})).json();
+  const sel = $("model");
+  for (const m of sys.models) {
+    const o = document.createElement("option");
+    o.value = m.name;
+    const state = m.installed ? "✓ jau turima" : `reikės atsisiųsti ~${m.download_mb} MB`;
+    o.textContent = `${m.name}: ${state}` + (m.fits_ram ? "" : ` (rekomenduojama ${m.min_ram_gb}+ GB RAM)`);
+    sel.appendChild(o);
+  }
+  sel.value = sys.recommended;
+
+  $("syscheck").hidden = false;
+  $("sys-line").textContent = `${sys.ram_gb} GB RAM · ${sys.cpu_threads} gijos` + (sys.gpu ? ` · ${sys.gpu}` : "") +
+    ` · laisva vieta ${sys.disk_free_gb} GB`;
+  const rec = sys.models.find(m => m.name === sys.recommended);
+  $("sys-msg").textContent = sys.recommended_installed
+    ? `Radau jau turimą modelį „${sys.recommended}“ (${rec.source}). Naudosiu jį, nieko atsisiųsti nereikia.`
+    : `Turimo tinkamo modelio nerasta. Pirmą kartą atsisiųsiu „${sys.recommended}“ (~${rec.download_mb} MB)` +
+      (sys.disk_free_gb * 1024 < rec.download_mb * 2 ? " – Dėmesio: laisvos vietos gali nepakakti." : ".");
+  if (sys.other_engines.length) {
+    const o = sys.other_engines[0];
+    $("sys-other").textContent = `Rastas kito įrankio modelis (${o.format}): ${o.path.split(/[\\/]/).pop()}. Lite naudoja kitą modelių formatą, todėl jo nenaudos.`;
+  }
+  setInterval(refresh, 1000);
+  refresh();
+  checkUpdate();
+}
+
+function upload(file) {
+  const q = new URLSearchParams({name: file.name, model: $("model").value, language: $("language").value});
+  if ($("prompt").value.trim()) q.set("prompt", $("prompt").value.trim());
+  return fetch("/api/upload?" + q, {method: "PUT", headers: hdr, body: file})
+    .then(r => r.json()).then(j => { if (j.error) alert(j.error); refresh(); });
+}
+
+async function checkUpdate() {
+  try {
+    const u = await (await fetch("/api/update", {headers: hdr})).json();
+    if (!u.available) { setTimeout(checkUpdate, 15000); return; }
+    $("update").hidden = false;
+    $("update-text").textContent = `Yra nauja versija ${u.version}` + (u.title ? ` (${u.title})` : "");
+    $("update-btn").onclick = async () => {
+      $("update-btn").disabled = true; $("update-msg").textContent = " Atsisiunčiama ir tikrinamas parašas...";
+      const r = await fetch("/api/update/install", {method: "POST", headers: hdr});
+      const j = await r.json();
+      $("update-msg").textContent = j.ok ? ` Paleistas diegimo failas: ${j.file}. Uždaryk šią programą ir užbaik diegimą.` : ` Nepavyko: ${j.error}`;
+      $("update-btn").disabled = false;
+    };
+  } catch (e) {}
+}
+
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+async function refresh() {
+  const jobs = await (await fetch("/api/jobs", {headers: hdr})).json();
+  $("jobs").innerHTML = jobs.slice().reverse().map(j => {
+    const done = j.state === "done";
+    const links = done ? ["srt", "vtt", "txt"].map((f, i) =>
+      `<a class="btn ${i === 0 ? "primary" : ""}" href="/api/jobs/${j.id}/${f}?t=${T}">${f.toUpperCase()}</a>`).join("") : "";
+    const cancel = (j.state === "running" || j.state === "waiting") ? `<button onclick="cancelJob('${j.id}')">Nutraukti</button>` : "";
+    return `<div class="job"><h3>${esc(j.name)}</h3>
+      <div class="bar"><i style="width:${Math.round(j.progress * 100)}%"></i></div>
+      <div class="meta">${esc(j.stage)}${done ? ` · ${j.cues} subtitrai` + (j.language ? ` · ${esc(j.language)}` : "") : ""}</div>
+      ${j.error ? `<div class="err">${esc(j.error)}</div>` : ""}
+      ${(j.warnings || []).map(w => `<div class="warn">⚠ ${esc(w)}</div>`).join("")}
+      ${links}${cancel}</div>`;
+  }).join("");
+}
+function cancelJob(id) { fetch("/api/jobs/" + id, {method: "DELETE", headers: hdr}).then(refresh); }
+
+const drop = $("drop"), input = $("file");
+drop.onclick = () => input.click();
+drop.onkeydown = e => { if (e.key === "Enter" || e.key === " ") input.click(); };
+input.onchange = () => { [...input.files].forEach(upload); input.value = ""; };
+["dragenter", "dragover"].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", ev => [...ev.dataTransfer.files].forEach(upload));
+boot();
+</script>
+</body>
+</html>
