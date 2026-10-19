@@ -197,7 +197,7 @@ def build_windows(dist: str, out: str) -> str:
 
 
 MAC_DEPS = ["faster-whisper>=1.0", "av==14.2.0", "imageio-ffmpeg>=0.4", "cryptography>=41", "sherpa-onnx>=1.10",
-            "sentencepiece>=0.1.99", "numpy>=1.26,<2", "onnxruntime==1.19.2", "pywebview>=5", "pyinstaller"]
+            "sentencepiece>=0.1.99", "numpy>=1.26,<2", "onnxruntime==1.19.2", "pyinstaller"]
 
 
 def reexec_in_standalone() -> int:
@@ -207,9 +207,11 @@ def reexec_in_standalone() -> int:
     env = dict(os.environ, UV_PYTHON_PREFERENCE="only-managed")
     venv = os.path.join(work, "venv")
     run([sys.executable, "-m", "uv", "python", "install", "3.12"], env=env)
-    run([sys.executable, "-m", "uv", "venv", "--python", "3.12", venv], env=env)
+    run([sys.executable, "-m", "uv", "venv", "--managed-python", "--python", "3.12", venv], env=env)
     py = os.path.join(venv, "bin", "python")
     run([sys.executable, "-m", "uv", "pip", "install", "--python", py, "--only-binary", ":all:", *MAC_DEPS], env=env)
+    # pywebview priklauso nuo proxy_tools, kuris turi tik grynojo Python šaltinį (be wheel): čia sdist leidžiamas
+    run([sys.executable, "-m", "uv", "pip", "install", "--python", py, "pywebview>=5"], env=env)
     run([py, "-c", "import sys,ssl;print(sys.version, sys.executable, ssl.OPENSSL_VERSION)"])
     env["SRTFORGE_STANDALONE"] = "1"
     return subprocess.run([py, os.path.abspath(__file__), *sys.argv[1:]], env=env).returncode

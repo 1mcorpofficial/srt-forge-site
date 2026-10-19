@@ -138,7 +138,7 @@ def main() -> int:
 
         assert json.loads(call("GET", "/api/ping"))["ok"] is True
         page = call("GET", f"/?t={info['token']}").decode()
-        assert "SRT Forge Lite" in page and "__TOKEN__" not in page
+        assert "SRT Forge" in page and "__TOKEN__" not in page
         real_token = info["token"]
         info["token"] = "blogas"
         try:

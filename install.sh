@@ -52,7 +52,7 @@ say "Diegiamos priklausomybės (kelios minutės, ~300 MB)..."
   || die "Nepavyko įdiegti priklausomybių šiai sistemai. Lengviausia: atsisiųsk paruoštą programą (.dmg) iš https://srt.1millionads.net"
 
 # macOS: savas programos langas (be naršyklės); nepavykus programa atsidarys naršyklėje
-[ "$(uname -s)" = "Darwin" ] && { "$VPY" -m pip install --quiet --only-binary=:all: "pywebview>=5" || say "Natyvaus lango komponentas neįdiegtas – programa atsidarys naršyklėje."; }
+[ "$(uname -s)" = "Darwin" ] && { "$VPY" -m pip install --quiet "pywebview>=5" || say "Natyvaus lango komponentas neįdiegtas – programa atsidarys naršyklėje."; }
 
 # 3. Manifestas -> parašas -> sha256 -> diegimas
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
