@@ -1,0 +1,65 @@
+# Surenka SRT Forge Lite paketus Windows, macOS (Apple Silicon + Intel) ir Linux ir prideda juos prie GitHub Release.
+# Paleidimas: git tag lite-v0.1.0 && git push origin lite-v0.1.0   (arba Actions -> Run workflow)
+# Veikia VIEŠAME repo (nemokamos minutės); paslapčių nereikia – tik automatinis GITHUB_TOKEN.
+name: build-lite
+on:
+  push:
+    tags: ["lite-v*"]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, label: windows-x64 }
+          - { os: macos-14,       label: macos-arm64 }
+          - { os: macos-13,       label: macos-x64 }
+          - { os: ubuntu-22.04,   label: linux-x64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Priklausomybės
+        run: python -m pip install --upgrade pip pyinstaller faster-whisper imageio-ffmpeg cryptography
+      - name: Testai (Linux; kitose OS tikrina dūmų testas)
+        if: runner.os == 'Linux'
+        run: python -m unittest discover -s lite/tests -t lite
+      - name: Inno Setup (Windows)
+        if: runner.os == 'Windows'
+        run: choco install innosetup -y --no-progress
+      - name: Paketas
+        run: python lite/packaging/build.py --out dist-lite
+        env:
+          SRTFORGE_UPDATE_PUBLIC_KEY: ${{ vars.SRTFORGE_UPDATE_PUBLIC_KEY }}
+      - name: Dūmų testas (tikras paketas, tikras modelis, be Python aplinkos)
+        shell: bash
+        run: |
+          pkg=$(ls dist-lite/* | head -1)
+          python lite/packaging/smoke.py "$pkg"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lite-${{ matrix.label }}
+          path: dist-lite/*
+          if-no-files-found: error
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/lite-v')
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" dist/* --repo "${GITHUB_REPOSITORY}" \
+            --title "SRT Forge Lite ${GITHUB_REF_NAME#lite-v}" \
+            --notes "Pasirašytą manifestą sukuria leidėjas (Scripts/sign_release.py)." || \
+          gh release upload "${GITHUB_REF_NAME}" dist/* --repo "${GITHUB_REPOSITORY}" --clobber

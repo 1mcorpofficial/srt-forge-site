@@ -1,6 +1,6 @@
 # SRT Forge
 
-Garso ir video transkripcija į subtitrus tavo kompiuteryje. Atsisiuntimai: https://srt.1millionads.net
+Garso ir video transkripcija į subtitrus tavo kompiuteryje. Atsisiuntimai: https://
 
 Šis repo yra viešas: čia guli svetainė, **SRT Forge Lite** šaltiniai ir atsisiuntimai (Releases).
 
