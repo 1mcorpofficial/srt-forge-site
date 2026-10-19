@@ -115,10 +115,11 @@ class UpdaterTests(unittest.TestCase):
             tarball = os.path.join(sdist_dir, sorted(os.listdir(sdist_dir))[0])
             with open(tarball, "rb") as handle:
                 data = handle.read()
-            m = signed(self.private, version="0.1.0", data=data, url="file://" + tarball)
-            self.assertEqual(updater.install(m, self.key, allow_local=True, python=python), "0.1.0")
+            current = updater.__version__
+            m = signed(self.private, version=current, data=data, url="file://" + tarball)
+            self.assertEqual(updater.install(m, self.key, allow_local=True, python=python), current)
             shown = subprocess.run([python, "-m", "pip", "show", "srtforge-lite"], capture_output=True, text=True)
-            self.assertIn("Version: 0.1.0", shown.stdout)
+            self.assertIn(f"Version: {current}", shown.stdout)
 
 
 if __name__ == "__main__":

@@ -104,6 +104,7 @@ def transcribe(
     language: Optional[str] = "lt",
     model_dir: Optional[str] = None,
     prompt: Optional[str] = None,
+    task: str = "transcribe",
     rules: Optional[Rules] = None,
     progress: Optional[Callable[[str, float], None]] = None,
     cancelled: Callable[[], bool] = lambda: False,
@@ -127,6 +128,7 @@ def transcribe(
             word_timestamps=True,
             condition_on_previous_text=False,
             initial_prompt=prompt or None,
+            task="translate" if task == "translate" else "transcribe",   # translate: į anglų kalbą
             beam_size=5,
         )
         duration = max(info.duration, 0.001)
@@ -141,3 +143,46 @@ def transcribe(
         say("Formuojami subtitrai", 0.97)
         words = [w for w in words if w.text]
         return build_cues(words, rules), info.language, info.duration
+
+
+def has_video(path: str) -> bool:
+    """Ar faile yra tikras vaizdo srautas (ne albumo viršelis). Naudoja `ffmpeg -i` (ffprobe nebūtinas)."""
+    result = subprocess.run([ffmpeg_path(), "-hide_banner", "-i", path], capture_output=True, text=True,
+                            encoding="utf-8", errors="replace")
+    return any("Video:" in line and "attached pic" not in line for line in result.stderr.splitlines())
+
+
+def embed_subtitles(source: str, srt_text: str, target_base: str, mode: str) -> str:
+    """Subtitrai į video. mode='soft' – atskiras subtitrų takelis (mp4, o jei nepavyksta – mkv); 'burn' – įdegami į vaizdą.
+    Grąžina sukurto failo kelią."""
+    ffmpeg = ffmpeg_path()
+    with tempfile.TemporaryDirectory(prefix="srtforge-embed-") as tmp:
+        srt = os.path.join(tmp, "subs.srt")
+        with open(srt, "w", encoding="utf-8") as handle:
+            handle.write(srt_text)
+
+        def run(cmd):
+            result = subprocess.run(cmd, cwd=tmp, capture_output=True, text=True, encoding="utf-8", errors="replace")
+            if result.returncode != 0:
+                raise RuntimeError("ffmpeg nepavyko: " + (result.stderr.strip().splitlines() or ["nežinoma klaida"])[-1])
+
+        if mode == "burn":
+            out = target_base + ".mp4"
+            style = ("FontName=Arial,FontSize=22,PrimaryColour=&H00FFFFFF,OutlineColour=&HAA000000,BorderStyle=1,"
+                     "Outline=2,Shadow=0,Alignment=2,MarginV=40")
+            run([ffmpeg, "-y", "-v", "error", "-i", source, "-vf", f"subtitles=subs.srt:force_style='{style}'",
+                 "-c:v", "libx264", "-crf", "20", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-c:a", "copy", out])
+            return out
+
+        out = target_base + ".mp4"
+        try:
+            run([ffmpeg, "-y", "-v", "error", "-i", source, "-i", srt, "-map", "0:v:0", "-map", "0:a?", "-map", "1:0",
+                 "-c", "copy", "-c:s", "mov_text", "-metadata:s:s:0", "language=lit", out])
+            return out
+        except RuntimeError:
+            if os.path.exists(out):
+                os.remove(out)
+            out = target_base + ".mkv"
+            run([ffmpeg, "-y", "-v", "error", "-i", source, "-i", srt, "-map", "0:v:0", "-map", "0:a?", "-map", "1:0",
+                 "-c", "copy", "-c:s", "srt", out])
+            return out

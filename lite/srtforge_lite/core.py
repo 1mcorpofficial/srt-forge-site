@@ -102,8 +102,36 @@ def to_vtt(cues: List[Cue]) -> str:
     return "WEBVTT\n\n" + body + "\n"
 
 
-def to_txt(cues: List[Cue]) -> str:
-    return "\n".join(c.text.replace("\n", " ") for c in cues) + "\n"
+def to_txt(cues: List[Cue], paragraph_gap: float = 1.5) -> str:
+    """Skaitomas tekstas: tilpimas į pastraipas ties ilgesnėmis pauzėmis."""
+    paragraphs: List[str] = []
+    current: List[str] = []
+    for index, cue in enumerate(cues):
+        if current and cue.start - cues[index - 1].end >= paragraph_gap:
+            paragraphs.append(" ".join(current))
+            current = []
+        current.append(cue.text.replace("\n", " ").strip())
+    if current:
+        paragraphs.append(" ".join(current))
+    return "\n\n".join(paragraphs) + "\n"
+
+
+def to_ts(cues: List[Cue]) -> str:
+    """Tekstas su laiko žymomis: [00:01:02] sakinys."""
+    return "\n".join(f"[{timestamp(c.start).split(',')[0]}] {c.text.replace(chr(10), ' ')}" for c in cues) + "\n"
+
+
+def to_json(cues: List[Cue], language: Optional[str] = None, task: str = "transcribe") -> str:
+    """Segmentai ir žodžių laikai (kūrėjams / tolesniam apdorojimui)."""
+    import json
+
+    return json.dumps({
+        "language": language, "task": task,
+        "segments": [{
+            "id": index, "start": round(c.start, 3), "end": round(c.end, 3), "text": c.text.replace("\n", " "),
+            "words": [{"word": w.text, "start": round(w.start, 3), "end": round(w.end, 3)} for w in c.words],
+        } for index, c in enumerate(cues)],
+    }, ensure_ascii=False, indent=2) + "\n"
 
 
 _TOKEN = re.compile(r"\w+", re.UNICODE)

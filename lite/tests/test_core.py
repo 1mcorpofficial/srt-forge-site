@@ -1,7 +1,7 @@
 import unittest
 
 from srtforge_lite.core import (Cue, Rules, Word, build_cues, drop_hallucinated, find_hallucinations, timestamp,
-                                to_srt, to_txt, to_vtt, wrap)
+                                to_json, to_srt, to_ts, to_txt, to_vtt, wrap)
 
 
 def words(text, start=0.0, step=0.4):
@@ -48,6 +48,18 @@ class CueTests(unittest.TestCase):
         self.assertEqual(to_vtt([cue]), "WEBVTT\n\n00:01:01.500 --> 00:01:03.250\nPirma\nantra\n")
         self.assertEqual(to_txt([cue]), "Pirma antra\n")
         self.assertEqual(timestamp(3661.0049), "01:01:01,005")
+
+    def test_txt_groups_paragraphs_on_long_pauses(self):
+        cues = [Cue(0, 1, "Pirmas."), Cue(1.2, 2, "Antras."), Cue(5, 6, "Naujas skyrius.")]
+        self.assertEqual(to_txt(cues), "Pirmas. Antras.\n\nNaujas skyrius.\n")
+
+    def test_timed_text_and_json_with_word_times(self):
+        cue = Cue(61.5, 63.0, "Labas rytas", words=[Word("Labas", 61.5, 62.0), Word("rytas", 62.1, 62.9)])
+        self.assertEqual(to_ts([cue]), "[00:01:01] Labas rytas\n")
+        import json
+        doc = json.loads(to_json([cue], "lt", "translate"))
+        self.assertEqual((doc["language"], doc["task"]), ("lt", "translate"))
+        self.assertEqual(doc["segments"][0]["words"][1], {"word": "rytas", "start": 62.1, "end": 62.9})
 
     def test_wrap_short_untouched(self):
         self.assertEqual(wrap("Trumpas.", Rules()), "Trumpas.")

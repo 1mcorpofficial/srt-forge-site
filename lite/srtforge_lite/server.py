@@ -18,12 +18,20 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Dict, Optional
 
 from . import __version__
-from .core import find_hallucinations, drop_hallucinated, to_srt, to_txt, to_vtt
-from .engine import MODELS, recommend_model, transcribe, total_ram_gb
+from .core import drop_hallucinated, find_hallucinations, to_json, to_srt, to_ts, to_txt, to_vtt
+from .engine import MODELS, embed_subtitles, has_video, recommend_model, total_ram_gb, transcribe
 from .models import system_report
 
 UI_PATH = os.path.join(os.path.dirname(__file__), "ui.html")
-FORMATS = {"srt": ("application/x-subrip", to_srt), "vtt": ("text/vtt", to_vtt), "txt": ("text/plain", to_txt)}
+# fmt -> (Content-Type, plėtinys, atvaizdavimas pagal darbą)
+FORMATS = {
+    "srt": ("application/x-subrip", "srt", lambda job: to_srt(job.cues)),
+    "vtt": ("text/vtt", "vtt", lambda job: to_vtt(job.cues)),
+    "txt": ("text/plain", "txt", lambda job: to_txt(job.cues)),
+    "ts": ("text/plain", "laikai.txt", lambda job: to_ts(job.cues)),
+    "json": ("application/json", "json", lambda job: to_json(job.cues, job.language, job.options.get("task", "transcribe"))),
+}
+TASKS = ("transcribe", "translate")
 MAX_NAME = 200
 
 
@@ -41,11 +49,23 @@ class Job:
         self.warnings = []
         self.language: Optional[str] = None
         self.cancel = threading.Event()
+        self.has_video = False
+        self.embed: dict = {"state": "none", "mode": None, "error": None, "path": None, "name": None}
 
     def public(self) -> dict:
         return {"id": self.id, "name": self.name, "state": self.state, "stage": self.stage,
                 "progress": round(self.progress, 3), "error": self.error, "warnings": self.warnings,
-                "language": self.language, "cues": len(self.cues)}
+                "language": self.language, "cues": len(self.cues), "task": self.options.get("task", "transcribe"),
+                "has_video": self.has_video,
+                "embed": {k: self.embed[k] for k in ("state", "mode", "error", "name")}}
+
+    def remove_files(self) -> None:
+        for path in (self.path, self.embed.get("path")):
+            if path:
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
 
 
 class App:
@@ -94,12 +114,16 @@ class App:
             try:
                 cues, language, _duration = self.runner(
                     job.path, model=job.options["model"], language=job.options["language"],
-                    model_dir=self.model_dir, prompt=job.options.get("prompt"),
+                    model_dir=self.model_dir, prompt=job.options.get("prompt"), task=job.options.get("task", "transcribe"),
                     progress=progress, cancelled=job.cancel.is_set)
                 flags = find_hallucinations(cues)
                 job.warnings = [f"Tikėtina Whisper haliucinacija: „{p}“ ×{n} (subtitrai {a + 1}–{b + 1})" for a, b, p, n in flags]
                 job.cues = drop_hallucinated(cues, flags)
                 job.language = language
+                try:
+                    job.has_video = has_video(job.path)       # video failą paliekame subtitrų įdėjimui
+                except Exception:  # noqa: BLE001
+                    job.has_video = False
                 job.state, job.stage, job.progress = "done", "Baigta", 1.0
             except InterruptedError:
                 job.state, job.stage = "cancelled", "Nutraukta"
@@ -107,10 +131,24 @@ class App:
                 job.state, job.stage, job.error = "failed", "Klaida", str(error)
                 _log_exception(job.name)
             finally:
-                try:
-                    os.remove(job.path)
-                except OSError:
-                    pass
+                if not job.has_video:
+                    try:
+                        os.remove(job.path)
+                    except OSError:
+                        pass
+
+    def embed_worker(self, job: Job, mode: str) -> None:
+        job.embed = {"state": "running", "mode": mode, "error": None, "path": None, "name": None}
+        try:
+            base = os.path.join(self.work_dir, uuid.uuid4().hex)
+            out = embed_subtitles(job.path, to_srt(job.cues), base, mode)
+            stem = os.path.splitext(job.name)[0] or "video"
+            suffix = ".subtitrai" if mode == "soft" else ".su-subtitrais"
+            job.embed = {"state": "done", "mode": mode, "error": None, "path": out,
+                         "name": f"{stem}{suffix}{os.path.splitext(out)[1]}"}
+        except Exception as error:  # noqa: BLE001
+            job.embed = {"state": "failed", "mode": mode, "error": str(error), "path": None, "name": None}
+            _log_exception(job.name)
 
     def start(self, port: int = 0, open_browser: bool = True) -> str:
         app = self
@@ -146,6 +184,22 @@ class App:
                 self.end_headers()
                 self.wfile.write(body)
 
+            def _stream_file(self, path: str, name: str) -> None:
+                try:
+                    size = os.path.getsize(path)
+                    handle = open(path, "rb")
+                except OSError:
+                    return self._json(404, {"error": "failas dingo"})
+                with handle:
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/octet-stream")
+                    self.send_header("Content-Length", str(size))
+                    self.send_header("Cache-Control", "no-store")
+                    self.send_header("X-Content-Type-Options", "nosniff")
+                    self.send_header("Content-Disposition", "attachment; filename*=UTF-8''" + urllib.parse.quote(name))
+                    self.end_headers()
+                    shutil.copyfileobj(handle, self.wfile, 1 << 20)
+
             def _json(self, code: int, payload) -> None:
                 self._send(code, json.dumps(payload, ensure_ascii=False).encode())
 
@@ -180,11 +234,17 @@ class App:
                     if len(parts) == 3:
                         return self._json(200, job.public())
                     fmt = parts[3]
+                    if fmt == "transcript" and job.state == "done":
+                        return self._json(200, {"language": job.language, "task": job.options.get("task", "transcribe"),
+                                                "cues": [{"start": c.start, "end": c.end, "text": c.text.replace("\n", " ")}
+                                                         for c in job.cues]})
+                    if fmt == "video" and job.embed.get("state") == "done" and job.embed.get("path"):
+                        return self._stream_file(job.embed["path"], job.embed["name"])
                     if fmt in FORMATS and job.state == "done":
-                        ctype, render = FORMATS[fmt]
-                        stem = os.path.splitext(job.name)[0] or "subtitrai"
-                        quoted = urllib.parse.quote(f"{stem}.{fmt}")
-                        return self._send(200, render(job.cues).encode("utf-8"), ctype + "; charset=utf-8",
+                        ctype, ext, render = FORMATS[fmt]
+                        stem = os.path.splitext(job.name)[0] or "irasas"
+                        quoted = urllib.parse.quote(f"{stem}.{ext}")
+                        return self._send(200, render(job).encode("utf-8"), ctype + "; charset=utf-8",
                                           {"Content-Disposition": f"attachment; filename*=UTF-8''{quoted}"})
                 return self._json(404, {"error": "nerasta"})
 
@@ -202,6 +262,9 @@ class App:
                 language = query.get("language") or None
                 if language == "auto":
                     language = None
+                task = query.get("task") or "transcribe"
+                if task not in TASKS:
+                    return self._json(400, {"error": "nežinoma užduotis"})
                 length = int(self.headers.get("Content-Length") or 0)
                 if length <= 0:
                     return self._json(400, {"error": "tuščias failas"})
@@ -220,7 +283,7 @@ class App:
                     os.remove(path)
                     return self._json(400, {"error": "įkėlimas nutrūko"})
 
-                job = Job(name, path, {"model": model, "language": language, "prompt": query.get("prompt")})
+                job = Job(name, path, {"model": model, "language": language, "prompt": query.get("prompt"), "task": task})
                 app.jobs[job.id] = job
                 app.queue.put(job)
                 return self._json(200, job.public())
@@ -228,7 +291,21 @@ class App:
             def do_POST(self):
                 if not self._authorized():
                     return self._json(403, {"error": "forbidden"})
-                if urllib.parse.urlparse(self.path).path != "/api/update/install" or not app.update_entry or not app.update_installer:
+                parsed = urllib.parse.urlparse(self.path)
+                parts = parsed.path.strip("/").split("/")
+                if len(parts) == 4 and parts[:2] == ["api", "jobs"] and parts[3] == "embed":
+                    job = app.jobs.get(parts[2])
+                    mode = (urllib.parse.parse_qs(parsed.query).get("mode") or ["soft"])[0]
+                    if not job or job.state != "done":
+                        return self._json(404, {"error": "nerasta"})
+                    if not job.has_video or mode not in ("soft", "burn"):
+                        return self._json(400, {"error": "šis failas neturi vaizdo arba režimas neteisingas"})
+                    if job.embed.get("state") == "running":
+                        return self._json(409, {"error": "jau vyksta"})
+                    threading.Thread(target=app.embed_worker, args=(job, mode), daemon=True).start()
+                    time.sleep(0.05)
+                    return self._json(200, job.public())
+                if parsed.path != "/api/update/install" or not app.update_entry or not app.update_installer:
                     return self._json(404, {"error": "nerasta"})
                 try:
                     path = app.update_installer(app.update_entry)
@@ -239,10 +316,15 @@ class App:
             def do_DELETE(self):
                 if not self._authorized():
                     return self._json(403, {"error": "forbidden"})
-                parts = urllib.parse.urlparse(self.path).path.strip("/").split("/")
+                parsed = urllib.parse.urlparse(self.path)
+                parts = parsed.path.strip("/").split("/")
                 job = app.jobs.get(parts[2]) if len(parts) == 3 and parts[:2] == ["api", "jobs"] else None
                 if not job:
                     return self._json(404, {"error": "nerasta"})
+                if job.state in ("done", "failed", "cancelled"):      # baigtą darbą pašaliname kartu su failais
+                    job.remove_files()
+                    app.jobs.pop(job.id, None)
+                    return self._json(200, {"removed": True})
                 job.cancel.set()
                 if job.state == "waiting":
                     job.state, job.stage = "cancelled", "Nutraukta"

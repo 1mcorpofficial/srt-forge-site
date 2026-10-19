@@ -164,6 +164,35 @@ def main() -> int:
         srt = call("GET", f"/api/jobs/{created['id']}/srt").decode("utf-8")
         assert "-->" in srt and srt.startswith("1\n"), srt[:200]
         assert call("GET", f"/api/jobs/{created['id']}/vtt").startswith(b"WEBVTT")
+        # naujos funkcijos: eksportai, vertimas, video su subtitrais
+        assert json.loads(call("GET", f"/api/jobs/{created['id']}/json"))["segments"], "JSON be segmentų"
+        assert call("GET", f"/api/jobs/{created['id']}/ts").startswith(b"["), "laikų tekstas"
+        assert call("GET", f"/api/jobs/{created['id']}/txt").strip(), "tuščias tekstas"
+
+        import imageio_ffmpeg
+        video = os.path.join(work, "klipas.mp4")
+        made = subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc=d=4:s=320x240:r=25",
+                               "-i", CLIP, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", video],
+                              capture_output=True, text=True)
+        assert made.returncode == 0, made.stderr
+        with open(video, "rb") as handle:
+            vjob = json.loads(call("PUT", "/api/upload?name=klipas.mp4&model=tiny&language=lt", handle.read()))
+        deadline = time.time() + 600
+        while time.time() < deadline and vjob["state"] not in ("done", "failed"):
+            time.sleep(3)
+            vjob = json.loads(call("GET", f"/api/jobs/{vjob['id']}"))
+        assert vjob["state"] == "done" and vjob["has_video"], f"video darbas: {vjob}"
+        for mode in ("soft", "burn"):
+            started = json.loads(call("POST", f"/api/jobs/{vjob['id']}/embed?mode={mode}", b""))
+            end = time.time() + 300
+            while time.time() < end and started["embed"]["state"] == "running":
+                time.sleep(2)
+                started = json.loads(call("GET", f"/api/jobs/{vjob['id']}"))
+            assert started["embed"]["state"] == "done", f"{mode}: {started['embed']}"
+            data = call("GET", f"/api/jobs/{vjob['id']}/video", timeout=120)
+            assert len(data) > 2000, f"{mode}: per mažas video ({len(data)} B)"
+            print("  video", mode, "OK", len(data), "B", flush=True)
+
         print("OK", platform.platform(), "subtitrų:", job["cues"])
         print(srt[:300])
         return 0

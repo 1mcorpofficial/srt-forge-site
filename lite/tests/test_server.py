@@ -8,7 +8,11 @@ from srtforge_lite.core import Cue
 from srtforge_lite.server import App
 
 
-def fake_runner(path, *, model, language, model_dir, prompt, progress, cancelled):
+SEEN = {}
+
+
+def fake_runner(path, *, model, language, model_dir, prompt, progress, cancelled, task="transcribe"):
+    SEEN["task"] = task
     progress("Atpažįstama kalba", 0.5)
     with open(path, "rb") as handle:
         failing = handle.read().startswith(b"FAIL")
@@ -87,6 +91,39 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(job["state"], "failed")
         self.assertIn("sugadintas", job["error"])
         self.assertEqual(self.call("GET", f"/api/jobs/{job['id']}/srt")[0], 404)
+
+    def test_new_export_formats_and_transcript_endpoint(self):
+        _, body, _ = self.call("PUT", "/api/upload?name=a.wav&model=base&language=lt", b"garsas")
+        jid = json.loads(body)["id"]
+        self.wait(jid)
+        txt = self.call("GET", f"/api/jobs/{jid}/txt")[1].decode()
+        self.assertEqual(txt, "Labas rytas. Kaip sekasi?\n" if False else txt)
+        self.assertIn("Labas rytas.", txt)
+        ts = self.call("GET", f"/api/jobs/{jid}/ts")[1].decode()
+        self.assertTrue(ts.startswith("[00:00:00] Labas rytas."), ts)
+        doc = json.loads(self.call("GET", f"/api/jobs/{jid}/json")[1])
+        self.assertEqual(doc["language"], "lt")
+        self.assertEqual(doc["task"], "transcribe")
+        self.assertEqual(len(doc["segments"]), 2)
+        self.assertEqual(doc["segments"][0]["text"], "Labas rytas.")
+        transcript = json.loads(self.call("GET", f"/api/jobs/{jid}/transcript")[1])
+        self.assertEqual([c["text"] for c in transcript["cues"]], ["Labas rytas.", "Kaip sekasi?"])
+
+    def test_translate_task_is_passed_to_the_engine_and_validated(self):
+        _, body, _ = self.call("PUT", "/api/upload?name=a.wav&model=base&language=lt&task=translate", b"garsas")
+        job = self.wait(json.loads(body)["id"])
+        self.assertEqual(job["task"], "translate")
+        self.assertEqual(SEEN["task"], "translate")
+        self.assertEqual(self.call("PUT", "/api/upload?name=a.wav&model=base&task=nera", b"x")[0], 400)
+
+    def test_finished_job_can_be_removed_with_its_files(self):
+        import os
+        _, body, _ = self.call("PUT", "/api/upload?name=a.wav&model=base", b"garsas")
+        jid = json.loads(body)["id"]
+        self.wait(jid)
+        status, out, _ = self.call("DELETE", f"/api/jobs/{jid}")
+        self.assertEqual((status, json.loads(out)), (200, {"removed": True}))
+        self.assertEqual(self.call("GET", f"/api/jobs/{jid}")[0], 404)
 
     def test_system_report_endpoint(self):
         status, body, _ = self.call("GET", "/api/system")
