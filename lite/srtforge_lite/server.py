@@ -386,6 +386,11 @@ def main() -> None:
         print(f"SRT Forge Lite jau veikia: {existing}", flush=True)
         return
 
+    if os.environ.get("SRTFORGE_DEBUG"):
+        # Derinimui: jei procesas užstringa, po 25 s į žurnalą išmetami visų gijų pėdsakai
+        import faulthandler
+
+        faulthandler.dump_traceback_later(25, repeat=False, file=open(os.path.join(data_dir(), "srtforge.log"), "a", buffering=1))
     app = App(model_dir=args.model_dir, **_update_hooks())
     url = app.start(args.port, open_browser=not args.no_browser)
     run_file = write_run_file(app, url)

@@ -59,7 +59,7 @@ def main() -> int:
     assert os.path.exists(exe), "po diegimo nėra vykdomojo failo"
 
     env = {k: v for k, v in os.environ.items() if k.upper() not in ("PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV")}
-    env.update(SRTFORGE_DATA_DIR=data, SRTFORGE_MODEL_DIR=models)
+    env.update(SRTFORGE_DATA_DIR=data, SRTFORGE_MODEL_DIR=models, SRTFORGE_DEBUG="1")
     # PATH palikti: Windows reikia sisteminių DLL; ffmpeg turi būti paties paketo viduje (tikrinam žemiau)
     proc = subprocess.Popen([exe, "--no-browser", "--idle-exit", "120"], env=env,
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -99,8 +99,9 @@ def main() -> int:
                 subprocess.run(["netstat", "-ano"], check=False)
 
         try:
-            call("GET", "/api/ping", timeout=20)
+            call("GET", "/api/ping", timeout=40)       # >25 s: faulthandler spėja išmesti pėdsakus
         except Exception as error:  # noqa: BLE001
+            time.sleep(3)
             diagnose(f"ping nepavyko: {error!r}")
             raise
 
