@@ -50,7 +50,7 @@ class Job:
 
 class App:
     def __init__(self, model_dir: Optional[str] = None, work_dir: Optional[str] = None, runner=transcribe,
-                 update_checker=None, update_installer=None):
+                 update_checker=None, update_installer=None, update_delay: float = 15):
         self.token = secrets.token_urlsafe(24)
         self.model_dir = model_dir
         self.work_dir = work_dir or tempfile.mkdtemp(prefix="srtforge-uploads-")
@@ -64,7 +64,9 @@ class App:
         self.update_installer = update_installer
         threading.Thread(target=self._worker, daemon=True).start()
         if update_checker:
-            threading.Thread(target=self._check_update, daemon=True).start()
+            timer = threading.Timer(update_delay, self._check_update)          # po paleidimo, kad DNS/tinklas nestabdytų UI
+            timer.daemon = True
+            timer.start()
 
     def _check_update(self) -> None:
         try:
@@ -343,7 +345,7 @@ def _update_hooks() -> dict:
     """Atnaujinimų patikra tik jei programoje yra viešasis raktas (supakuotas arba įdiegtas leidimas)."""
     from . import updater
 
-    if not updater.public_key():
+    if not updater.public_key() or os.environ.get("SRTFORGE_NO_UPDATE_CHECK"):
         return {}
 
     def checker():

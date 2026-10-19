@@ -77,15 +77,30 @@ def main() -> int:
             sys.exit("per 120 s neatsirado run.json")
         info = json.load(open(run_json, encoding="utf-8"))
         base = f"http://127.0.0.1:{info['port']}"
-        headers = {"X-Token": info["token"]}
 
-        # Jokių sisteminių tarpinių serverių vietiniam adresui (Windows runneriai kartais juos turi)
-        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-
+        # Grynas lizdas be DNS (getaddrinfo Windows runneriuose gali užstrigti net 127.0.0.1) ir be tarpinių serverių
         def call(method, path, body=None, timeout=30):
-            request = urllib.request.Request(base + path, data=body, method=method, headers=headers)
-            with opener.open(request, timeout=timeout) as response:
-                return response.read()
+            import socket
+
+            payload = body or b""
+            request = (f"{method} {path} HTTP/1.0\r\nHost: 127.0.0.1:{info['port']}\r\nX-Token: {info['token']}\r\n"
+                       f"Content-Length: {len(payload)}\r\nConnection: close\r\n\r\n").encode() + payload
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.settimeout(timeout)
+                sock.connect(("127.0.0.1", int(info["port"])))
+                sock.sendall(request)
+                chunks = []
+                while True:
+                    data = sock.recv(1 << 16)
+                    if not data:
+                        break
+                    chunks.append(data)
+            raw = b"".join(chunks)
+            head, _, content = raw.partition(b"\r\n\r\n")
+            status = int(head.split(b" ", 2)[1])
+            if status >= 400:
+                raise RuntimeError(f"HTTP {status}: {content[:200]!r}")
+            return content
 
         def diagnose(reason):
             print("=== DIAGNOSTIKA:", reason, "===", flush=True)
@@ -108,11 +123,15 @@ def main() -> int:
         assert json.loads(call("GET", "/api/ping"))["ok"] is True
         page = call("GET", f"/?t={info['token']}").decode()
         assert "SRT Forge Lite" in page and "__TOKEN__" not in page
+        real_token = info["token"]
+        info["token"] = "blogas"
         try:
-            urllib.request.urlopen(urllib.request.Request(base + "/api/info", headers={"X-Token": "blogas"}), timeout=10)
+            call("GET", "/api/info")
             sys.exit("serveris priėmė blogą tokeną")
-        except urllib.error.HTTPError as error:
-            assert error.code == 403
+        except RuntimeError as error:
+            assert "HTTP 403" in str(error), error
+        finally:
+            info["token"] = real_token
 
         with open(CLIP, "rb") as handle:
             created = json.loads(call("PUT", "/api/upload?name=smoke.wav&model=tiny&language=lt", handle.read()))

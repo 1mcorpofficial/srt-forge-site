@@ -209,7 +209,7 @@ class InstallerUpdateTests(unittest.TestCase):
 
         opened = []
         entry = {"version": "9.0.0", "title": "Linux", "size": 5}
-        app = App(runner=lambda *a, **k: None, update_checker=lambda: entry,
+        app = App(runner=lambda *a, **k: None, update_checker=lambda: entry, update_delay=0,
                   update_installer=lambda e: opened.append(e) or "/tmp/x/installer.tar.gz")
         url = app.start(open_browser=False)
         base, token = url.split("/?t=")
