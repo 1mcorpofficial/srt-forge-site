@@ -6,7 +6,7 @@
 
 Išvestis (--out kataloge):
   Windows: SRT-Forge-Lite-<v>-windows-x64.exe   (Inno Setup; jei yra iscc) arba .zip
-  macOS:   SRT-Forge-Lite-<v>-macos-<arm64|x64>.dmg
+  macOS:   SRT-Forge-Lite-<v>-macos-<arm64|x64>.pkg (+ .dmg)
   Linux:   SRT-Forge-Lite-<v>-linux-x64.tar.gz  (su Install failu)
 """
 import argparse
@@ -181,6 +181,35 @@ def build_macos(dist: str, out: str) -> str:
         os.remove(target)
     run(["hdiutil", "create", "-volname", NAME, "-srcfolder", stage, "-ov", "-format", "UDZO", target])
     shutil.rmtree(stage, ignore_errors=True)
+    build_macos_pkg(app, out, arch)
+    return target
+
+
+def build_macos_pkg(app: str, out: str, arch: str) -> str:
+    """Įprastas diegimo paketas (dukart spustelėti, „Tęsti“): programa atsiduria /Applications."""
+    import plistlib
+
+    work = tempfile.mkdtemp(prefix="srtforge-pkg-")
+    root = os.path.join(work, "root")
+    os.makedirs(root)
+    shutil.copytree(app, os.path.join(root, f"{NAME}.app"), symlinks=True)
+    plist_path = os.path.join(work, "component.plist")
+    run(["pkgbuild", "--analyze", "--root", root, plist_path])
+    with open(plist_path, "rb") as handle:
+        components = plistlib.load(handle)
+    for entry in components:
+        entry["BundleIsRelocatable"] = False                 # visada /Applications, ne kur nors rasta senesnė kopija
+        entry["BundleOverwriteAction"] = "upgrade"
+    with open(plist_path, "wb") as handle:
+        plistlib.dump(components, handle)
+    component = os.path.join(work, "component.pkg")
+    run(["pkgbuild", "--root", root, "--component-plist", plist_path, "--install-location", "/Applications",
+         "--identifier", "net.1millionads.srtforge-lite", "--version", __version__, component])
+    target = os.path.join(out, f"SRT-Forge-Lite-{__version__}-macos-{arch}.pkg")
+    if os.path.exists(target):
+        os.remove(target)
+    run(["productbuild", "--package", component, "--identifier", "net.1millionads.srtforge-lite", "--version", __version__, target])
+    shutil.rmtree(work, ignore_errors=True)
     return target
 
 
@@ -204,7 +233,7 @@ def reexec_in_standalone() -> int:
     """macOS: CI Python naudoja Homebrew OpenSSL (reikalauja macOS 15). Statinį OpenSSL turintis python-build-standalone veikia ir senesnėse."""
     work = tempfile.mkdtemp(prefix="srtforge-venv-")
     run([sys.executable, "-m", "pip", "install", "--quiet", "uv"])
-    env = dict(os.environ, UV_PYTHON_PREFERENCE="only-managed")
+    env = dict(os.environ)
     venv = os.path.join(work, "venv")
     run([sys.executable, "-m", "uv", "python", "install", "3.12"], env=env)
     run([sys.executable, "-m", "uv", "venv", "--managed-python", "--python", "3.12", venv], env=env)
