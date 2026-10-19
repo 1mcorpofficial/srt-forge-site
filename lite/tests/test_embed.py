@@ -79,7 +79,7 @@ class EmbedTests(unittest.TestCase):
             embed_subtitles(bad, SRT, os.path.join(self.tmp.name, "x"), "burn")
 
 
-def fake_runner(path, *, model, language, model_dir, prompt, progress, cancelled, task="transcribe", speakers=None, warn=None):
+def fake_runner(path, *, model, language, model_dir, prompt, progress, cancelled, task="transcribe", speakers=None, warn=None, rules=None):
     return [Cue(0.5, 2.5, "Labas rytas, pasauli.")], language or "lt", 3.0
 
 

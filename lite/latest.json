@@ -1,7 +1,0 @@
-{
-  "build": "1",
-  "downloadURL": "https://srt.1millionads.net/lite/srtforge_lite-0.3.0.tar.gz",
-  "sha256": "fde2b167017f388574eb0bd470db2ce5cab5e6384476fdf78e2eff7a548ea0eb",
-  "signature": "BAM/d5YL5+NzMe+5hCbcOFeAvxlAUjHKGsPuzj1P6zl5l9fGHo5cPVHzBQeLNnME7cDCWJZhS5AjcpoOfuAICw==",
-  "version": "0.3.0"
-}

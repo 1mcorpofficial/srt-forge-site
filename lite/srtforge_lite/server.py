@@ -21,24 +21,59 @@ from . import __version__
 from .core import drop_hallucinated, find_hallucinations, speaker_label, to_json, to_srt, to_ts, to_txt, to_vtt
 from .engine import MODELS, embed_subtitles, has_video, recommend_model, total_ram_gb, transcribe
 from .models import system_report
+from . import translate as tr
+from . import files as fl
 
 UI_PATH = os.path.join(os.path.dirname(__file__), "ui.html")
 # fmt -> (Content-Type, plėtinys, atvaizdavimas pagal darbą)
 FORMATS = {
-    "srt": ("application/x-subrip", "srt", lambda job: to_srt(job.cues, job.speaker_names)),
-    "vtt": ("text/vtt", "vtt", lambda job: to_vtt(job.cues, job.speaker_names)),
-    "txt": ("text/plain", "txt", lambda job: to_txt(job.cues, names=job.speaker_names)),
-    "ts": ("text/plain", "laikai.txt", lambda job: to_ts(job.cues, job.speaker_names)),
-    "json": ("application/json", "json", lambda job: to_json(job.cues, job.language, job.options.get("task", "transcribe"),
-                                                            job.speaker_names)),
+    "srt": ("application/x-subrip", "srt", lambda job, cues: to_srt(cues, job.speaker_names)),
+    "vtt": ("text/vtt", "vtt", lambda job, cues: to_vtt(cues, job.speaker_names)),
+    "txt": ("text/plain", "txt", lambda job, cues: to_txt(cues, names=job.speaker_names)),
+    "ts": ("text/plain", "laikai.txt", lambda job, cues: to_ts(cues, job.speaker_names)),
+    "json": ("application/json", "json", lambda job, cues: to_json(cues, job.language, job.options.get("task", "transcribe"),
+                                                                     job.speaker_names)),
 }
 TASKS = ("transcribe", "translate")
 MAX_NAME = 200
 
 
+def parse_options(query: dict):
+    """Bendri darbo nustatymai (įkėlimui ir vietiniam failui). Grąžina (options, klaida)."""
+    model = query.get("model") or recommend_model()
+    if model not in MODELS:
+        return None, "nežinomas modelis"
+    language = query.get("language") or None
+    if language == "auto":
+        language = None
+    task = query.get("task") or "transcribe"
+    if task not in TASKS:
+        return None, "nežinoma užduotis"
+    targets = [t for t in (query.get("targets") or "").split(",") if t]
+    if any(t not in tr.LANGUAGES for t in targets) or len(targets) > 8:
+        return None, "nežinoma vertimo kalba"
+    speakers = query.get("speakers") or "off"
+    if speakers not in ("off", "auto") and not (speakers.isdigit() and 1 <= int(speakers) <= 12):
+        return None, "neteisingas kalbėtojų skaičius"
+    style = query.get("style") or "standard"
+    if style not in fl.STYLES:
+        return None, "nežinomas subtitrų stilius"
+    rules = fl.STYLES[style]
+    outputs = [o for o in (query.get("outputs") or "").split(",") if o]
+    if any(o not in fl.OUTPUTS for o in outputs):
+        return None, "nežinomas išvesties formatas"
+    out_dir = query.get("out_dir") or None
+    if out_dir and not os.path.isabs(out_dir):
+        return None, "išvesties aplankas turi būti pilnas kelias"
+    return {"model": model, "language": language, "prompt": query.get("prompt"), "task": task, "speakers": speakers,
+            "targets": targets, "rules": rules, "style": style, "outputs": outputs, "out_dir": out_dir}, None
+
+
 class Job:
-    def __init__(self, name: str, path: str, options: dict):
+    def __init__(self, name: str, path: str, options: dict, owned: bool = True):
         self.id = uuid.uuid4().hex[:12]
+        self.owned = owned                     # False = vartotojo originalas, jo niekada netriname
+        self.saved: list = []                  # automatiškai įrašyti failai (pilni keliai)
         self.name = name
         self.path = path
         self.options = options
@@ -53,6 +88,7 @@ class Job:
         self.cancel = threading.Event()
         self.has_video = False
         self.speaker_names: Dict[int, str] = {}
+        self.translations: Dict[str, list] = {}
         self.embed: dict = {"state": "none", "mode": None, "error": None, "path": None, "name": None}
 
     def public(self) -> dict:
@@ -60,6 +96,8 @@ class Job:
                 "progress": round(self.progress, 3), "error": self.error, "warnings": self.warnings,
                 "language": self.language, "cues": len(self.cues), "task": self.options.get("task", "transcribe"),
                 "has_video": self.has_video, "speakers": self.speaker_list(),
+                "translations": sorted(self.translations),
+                "saved": [os.path.basename(p) for p in self.saved], "folder": os.path.dirname(self.saved[0]) if self.saved else None,
                 "embed": {k: self.embed[k] for k in ("state", "mode", "error", "name")}}
 
     def speaker_list(self) -> list:
@@ -67,7 +105,7 @@ class Job:
         return [{"id": i, "name": speaker_label(i, self.speaker_names)} for i in ids]
 
     def remove_files(self) -> None:
-        for path in (self.path, self.embed.get("path")):
+        for path in (self.path if self.owned else None, self.embed.get("path")):
             if path:
                 try:
                     os.remove(path)
@@ -77,7 +115,11 @@ class Job:
 
 class App:
     def __init__(self, model_dir: Optional[str] = None, work_dir: Optional[str] = None, runner=transcribe,
-                 update_checker=None, update_installer=None, update_delay: float = 15):
+                 update_checker=None, update_installer=None, update_delay: float = 15, translator=None,
+                 translation_dir: Optional[str] = None, picker=fl.pick_files, revealer=fl.reveal):
+        self.picker = picker
+        self.revealer = revealer
+        self.picked: set = set()               # tik pasirinkti per sistemos langą keliai gali būti apdorojami vietoje
         self.token = secrets.token_urlsafe(24)
         self.model_dir = model_dir
         self.work_dir = work_dir or tempfile.mkdtemp(prefix="srtforge-uploads-")
@@ -86,6 +128,8 @@ class App:
         self.runner = runner
         self.httpd: Optional[ThreadingHTTPServer] = None
         self.last_seen = time.time()
+        self.translator = translator
+        self.translation_dir = translation_dir
         self.update_entry: Optional[dict] = None
         self.update_checker = update_checker
         self.update_installer = update_installer
@@ -123,7 +167,7 @@ class App:
                     job.path, model=job.options["model"], language=job.options["language"],
                     model_dir=self.model_dir, prompt=job.options.get("prompt"), task=job.options.get("task", "transcribe"),
                     speakers=job.options.get("speakers"), warn=lambda text, job=job: job.extra_warnings.append(text),
-                    progress=progress, cancelled=job.cancel.is_set)
+                    progress=progress, cancelled=job.cancel.is_set, rules=job.options.get("rules"))
                 flags = find_hallucinations(cues)
                 job.warnings = [f"Tikėtina Whisper haliucinacija: „{p}“ ×{n} (subtitrai {a + 1}–{b + 1})" for a, b, p, n in flags] + job.extra_warnings
                 job.cues = drop_hallucinated(cues, flags)
@@ -132,6 +176,12 @@ class App:
                     job.has_video = has_video(job.path)       # video failą paliekame subtitrų įdėjimui
                 except Exception:  # noqa: BLE001
                     job.has_video = False
+                targets = job.options.get("targets") or []
+                if targets:
+                    self._translate_job(job, targets, progress)
+                if job.options.get("outputs"):
+                    job.stage = "Įrašomi failai"
+                    self._save_outputs(job)
                 job.state, job.stage, job.progress = "done", "Baigta", 1.0
             except InterruptedError:
                 job.state, job.stage = "cancelled", "Nutraukta"
@@ -139,19 +189,70 @@ class App:
                 job.state, job.stage, job.error = "failed", "Klaida", str(error)
                 _log_exception(job.name)
             finally:
-                if not job.has_video:
+                if not job.has_video and job.owned:
                     try:
                         os.remove(job.path)
                     except OSError:
                         pass
 
-    def embed_worker(self, job: Job, mode: str) -> None:
+    def _get_translator(self, progress=None):
+        if self.translator is None:
+            tr.ensure_model(self.translation_dir, progress)
+            self.translator = tr.Translator(self.translation_dir)
+        return self.translator
+
+    def _translate_job(self, job: Job, targets: list, progress) -> None:
+        source = job.language if job.options.get("task") != "translate" else "en"
+        if source not in tr.LANGUAGES:
+            job.extra_warnings.append(f"Šaltinio kalba „{source}“ vertimui nepalaikoma, vertimai praleisti.")
+            return
+        try:
+            translator = self._get_translator(lambda stage, value: progress(stage, 0.97 + 0.01 * value))
+            for index, target in enumerate(targets):
+                if job.cancel.is_set():
+                    raise InterruptedError("nutraukta")
+                progress(f"Verčiama į {tr.LANGUAGES[target]} ({index + 1}/{len(targets)})", 0.98 + 0.02 * index / len(targets))
+                job.translations[target] = tr.translate_cues(job.cues, translator, source, target)
+        except InterruptedError:
+            raise
+        except Exception as error:  # noqa: BLE001
+            job.extra_warnings.append(f"Vertimas nepavyko: {error}")
+            _log_exception(f"vertimas: {error}")
+            job.warnings = job.warnings + [f"Vertimas nepavyko: {error}"]
+
+    def _save_outputs(self, job: Job) -> None:
+        """Įrašo pasirinktus failus šalia originalo (arba į pasirinktą aplanką); niekada neperrašo esamų."""
+        directory = job.options.get("out_dir") or (os.path.dirname(job.path) if not job.owned else fl.default_out_dir())
+        os.makedirs(directory, exist_ok=True)
+        stem = os.path.splitext(job.name)[0] or "irasas"
+        variants = [("", job.cues)] + [(f".{lang}", job.translations[lang]) for lang in sorted(job.translations)]
+        for fmt in job.options["outputs"]:
+            if fmt in ("soft", "burn"):
+                if not job.has_video:
+                    job.warnings.append("Subtitrai į video neįdėti: tai ne video failas")
+                    continue
+                for tag, cues in variants:
+                    target = fl.unique_path(os.path.join(directory, f"{stem}{'.subtitrai' if fmt == 'soft' else '.su-subtitrais'}{tag}"))
+                    out = embed_subtitles(job.path, to_srt(cues, job.speaker_names), os.path.join(self.work_dir, uuid.uuid4().hex), fmt)
+                    final = fl.unique_path(target + os.path.splitext(out)[1])
+                    shutil.move(out, final)
+                    job.saved.append(final)
+                continue
+            ctype, ext, render = FORMATS[fmt]
+            for tag, cues in variants:
+                final = fl.unique_path(os.path.join(directory, f"{stem}{tag}.{ext}"))
+                with open(final, "w", encoding="utf-8", newline="") as handle:
+                    handle.write(render(job, cues))
+                job.saved.append(final)
+
+    def embed_worker(self, job: Job, mode: str, lang: str = "") -> None:
         job.embed = {"state": "running", "mode": mode, "error": None, "path": None, "name": None}
         try:
             base = os.path.join(self.work_dir, uuid.uuid4().hex)
-            out = embed_subtitles(job.path, to_srt(job.cues, job.speaker_names), base, mode)
+            cues = job.translations.get(lang) if lang else job.cues
+            out = embed_subtitles(job.path, to_srt(cues, job.speaker_names), base, mode)
             stem = os.path.splitext(job.name)[0] or "video"
-            suffix = ".subtitrai" if mode == "soft" else ".su-subtitrais"
+            suffix = (".subtitrai" if mode == "soft" else ".su-subtitrais") + (f".{lang}" if lang else "")
             job.embed = {"state": "done", "mode": mode, "error": None, "path": out,
                          "name": f"{stem}{suffix}{os.path.splitext(out)[1]}"}
         except Exception as error:  # noqa: BLE001
@@ -228,7 +329,10 @@ class App:
                                             "title": entry and entry.get("title"), "size": entry and entry.get("size")})
                 if path == "/api/info":
                     return self._json(200, {"version": __version__, "models": MODELS, "recommended": recommend_model(),
-                                            "ram_gb": round(total_ram_gb(), 1)})
+                                            "ram_gb": round(total_ram_gb(), 1), "out_dir": fl.default_out_dir()})
+                if path == "/api/languages":
+                    return self._json(200, {"targets": tr.LANGUAGES, "model_mb": tr.DOWNLOAD_MB,
+                                            "model_ready": app.translator is not None or tr.model_ready(app.translation_dir)})
                 if path == "/api/system":
                     return self._json(200, system_report(MODELS, total_ram_gb(), recommend_model(),
                                                          [app.model_dir] if app.model_dir else None))
@@ -254,7 +358,14 @@ class App:
                         ctype, ext, render = FORMATS[fmt]
                         stem = os.path.splitext(job.name)[0] or "irasas"
                         quoted = urllib.parse.quote(f"{stem}.{ext}")
-                        return self._send(200, render(job).encode("utf-8"), ctype + "; charset=utf-8",
+                        lang = (urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).get("lang") or [""])[0]
+                        cues = job.translations.get(lang) if lang else job.cues
+                        if cues is None:
+                            return self._json(404, {"error": "tokio vertimo nėra"})
+                        if lang:
+                            stem, ext = stem + "." + lang, ext
+                            quoted = urllib.parse.quote(f"{stem}.{ext}")
+                        return self._send(200, render(job, cues).encode("utf-8"), ctype + "; charset=utf-8",
                                           {"Content-Disposition": f"attachment; filename*=UTF-8''{quoted}"})
                 return self._json(404, {"error": "nerasta"})
 
@@ -266,18 +377,9 @@ class App:
                     return self._json(404, {"error": "nerasta"})
                 query = {k: v[0] for k, v in urllib.parse.parse_qs(parsed.query).items()}
                 name = os.path.basename(query.get("name", "irasas"))[:MAX_NAME] or "irasas"
-                model = query.get("model") or recommend_model()
-                if model not in MODELS:
-                    return self._json(400, {"error": "nežinomas modelis"})
-                language = query.get("language") or None
-                if language == "auto":
-                    language = None
-                task = query.get("task") or "transcribe"
-                if task not in TASKS:
-                    return self._json(400, {"error": "nežinoma užduotis"})
-                speakers = query.get("speakers") or "off"
-                if speakers not in ("off", "auto") and not (speakers.isdigit() and 1 <= int(speakers) <= 12):
-                    return self._json(400, {"error": "neteisingas kalbėtojų skaičius"})
+                options, error = parse_options(query)
+                if error:
+                    return self._json(400, {"error": error})
                 length = int(self.headers.get("Content-Length") or 0)
                 if length <= 0:
                     return self._json(400, {"error": "tuščias failas"})
@@ -296,8 +398,7 @@ class App:
                     os.remove(path)
                     return self._json(400, {"error": "įkėlimas nutrūko"})
 
-                job = Job(name, path, {"model": model, "language": language, "prompt": query.get("prompt"), "task": task,
-                                   "speakers": speakers})
+                job = Job(name, path, options)
                 app.jobs[job.id] = job
                 app.queue.put(job)
                 return self._json(200, job.public())
@@ -307,16 +408,49 @@ class App:
                     return self._json(403, {"error": "forbidden"})
                 parsed = urllib.parse.urlparse(self.path)
                 parts = parsed.path.strip("/").split("/")
+                if parsed.path == "/api/pick":
+                    paths = app.picker()
+                    if paths is None:
+                        return self._json(501, {"error": "šioje sistemoje failų langas nepasiekiamas"})
+                    app.picked.update(os.path.realpath(p) for p in paths)
+                    return self._json(200, {"paths": [{"path": os.path.realpath(p), "name": os.path.basename(p)} for p in paths]})
+                if parsed.path == "/api/jobs/local":
+                    try:
+                        payload = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), 100_000)) or b"{}")
+                        paths = [os.path.realpath(str(p)) for p in payload.get("paths", [])][:50]
+                        query = {k: ",".join(v) if isinstance(v, list) else str(v) for k, v in (payload.get("options") or {}).items()}
+                    except (ValueError, TypeError, AttributeError):
+                        return self._json(400, {"error": "neteisinga užklausa"})
+                    options, error = parse_options(query)
+                    if error:
+                        return self._json(400, {"error": error})
+                    if not paths or any(p not in app.picked or not os.path.isfile(p) for p in paths):
+                        return self._json(403, {"error": "failas nepasirinktas per langą"})
+                    made = []
+                    for p in paths:
+                        job = Job(os.path.basename(p), p, dict(options), owned=False)
+                        app.jobs[job.id] = job
+                        app.queue.put(job)
+                        made.append(job.public())
+                    return self._json(200, {"jobs": made})
+                if len(parts) == 4 and parts[:2] == ["api", "jobs"] and parts[3] == "reveal":
+                    job = app.jobs.get(parts[2])
+                    if not job or not job.saved:
+                        return self._json(404, {"error": "nėra įrašytų failų"})
+                    return self._json(200, {"ok": app.revealer(job.saved[0])})
                 if len(parts) == 4 and parts[:2] == ["api", "jobs"] and parts[3] == "embed":
                     job = app.jobs.get(parts[2])
                     mode = (urllib.parse.parse_qs(parsed.query).get("mode") or ["soft"])[0]
+                    lang = (urllib.parse.parse_qs(parsed.query).get("lang") or [""])[0]
                     if not job or job.state != "done":
                         return self._json(404, {"error": "nerasta"})
                     if not job.has_video or mode not in ("soft", "burn"):
                         return self._json(400, {"error": "šis failas neturi vaizdo arba režimas neteisingas"})
                     if job.embed.get("state") == "running":
                         return self._json(409, {"error": "jau vyksta"})
-                    threading.Thread(target=app.embed_worker, args=(job, mode), daemon=True).start()
+                    if lang and lang not in job.translations:
+                        return self._json(400, {"error": "tokio vertimo nėra"})
+                    threading.Thread(target=app.embed_worker, args=(job, mode, lang), daemon=True).start()
                     time.sleep(0.05)
                     return self._json(200, job.public())
                 if len(parts) == 4 and parts[:2] == ["api", "jobs"] and parts[3] == "speakers":

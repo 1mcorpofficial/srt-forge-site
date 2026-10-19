@@ -1,7 +1,9 @@
 import json
+import os
 import time
 import unittest
 import urllib.error
+import urllib.parse
 import urllib.request
 
 from srtforge_lite.core import Cue
@@ -11,7 +13,8 @@ from srtforge_lite.server import App
 SEEN = {}
 
 
-def fake_runner(path, *, model, language, model_dir, prompt, progress, cancelled, task="transcribe", speakers=None, warn=None):
+def fake_runner(path, *, model, language, model_dir, prompt, progress, cancelled, task="transcribe", speakers=None, warn=None, rules=None):
+    SEEN["rules"] = rules
     SEEN["task"] = task
     SEEN["speakers"] = speakers
     progress("Atpažįstama kalba", 0.5)
@@ -24,10 +27,18 @@ def fake_runner(path, *, model, language, model_dir, prompt, progress, cancelled
     return [Cue(0.0, 1.5, "Labas rytas."), Cue(2.0, 3.5, "Kaip sekasi?")], language or "lt", 3.5
 
 
+class FakeTranslator:
+    calls = []
+
+    def translate(self, texts, source, target):
+        FakeTranslator.calls.append((source, target, list(texts)))
+        return [f"[{target}] {t}" for t in texts]
+
+
 class ServerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.app = App(runner=fake_runner)
+        cls.app = App(runner=fake_runner, translator=FakeTranslator())
         cls.url = cls.app.start(open_browser=False)
         cls.base = cls.url.split("/?")[0]
         cls.token = cls.app.token
@@ -159,6 +170,80 @@ class ServerTests(unittest.TestCase):
         _, body, _ = self.call("PUT", "/api/upload?name=a.wav&model=base", b"garsas")
         job = self.wait(json.loads(body)["id"])
         self.assertEqual(job["speakers"], [])
+
+    def test_multi_language_translation_exports_per_language(self):
+        FakeTranslator.calls.clear()
+        _, body, _ = self.call("PUT", "/api/upload?name=laida.wav&model=base&language=lt&targets=en,de,pl", b"garsas")
+        jid = json.loads(body)["id"]
+        job = self.wait(jid)
+        self.assertEqual(job["state"], "done", job)
+        self.assertEqual(job["translations"], ["de", "en", "pl"])
+        self.assertEqual([c[:2] for c in FakeTranslator.calls], [("lt", "en"), ("lt", "de"), ("lt", "pl")])
+        srt_de = self.call("GET", f"/api/jobs/{jid}/srt?lang=de")[1].decode()
+        self.assertIn("[de] Labas rytas.", srt_de)
+        self.assertIn("00:00:00,000 --> 00:00:01,500", srt_de)                      # laikai nepasikeitė
+        status, _, headers = self.call("GET", f"/api/jobs/{jid}/txt?lang=pl")
+        self.assertEqual(status, 200)
+        self.assertIn("laida.pl.txt", urllib.parse.unquote(headers["Content-Disposition"]))
+        self.assertIn("Labas rytas.", self.call("GET", f"/api/jobs/{jid}/srt")[1].decode())    # originalas liko
+        self.assertEqual(self.call("GET", f"/api/jobs/{jid}/srt?lang=fr")[0], 404)
+
+    def test_translation_targets_are_validated(self):
+        self.assertEqual(self.call("PUT", "/api/upload?name=a.wav&model=base&targets=xx", b"x")[0], 400)
+        many = ",".join(["en", "de", "fr", "es", "it", "pt", "pl", "ru", "uk"])
+        self.assertEqual(self.call("PUT", f"/api/upload?name=a.wav&model=base&targets={many}", b"x")[0], 400)
+
+    def test_pick_then_process_in_place_and_save_next_to_original(self):
+        import tempfile
+        d = tempfile.mkdtemp()
+        src = os.path.join(d, "interviu.wav")
+        open(src, "wb").write(b"garsas")
+        open(os.path.join(d, "interviu.srt"), "w").write("SENAS")                    # esamas failas neturi būti perrašytas
+        self.app.picker = lambda: [src]
+        picked = json.loads(self.call("POST", "/api/pick", b"")[1])["paths"]
+        self.assertEqual(picked[0]["name"], "interviu.wav")
+        body = json.dumps({"paths": [picked[0]["path"]], "options": {"model": "base", "language": "lt", "style": "tv",
+                           "outputs": ["srt", "vtt", "txt"], "targets": ["en"]}}).encode()
+        status, resp, _ = self.call("POST", "/api/jobs/local", body)
+        self.assertEqual(status, 200, resp)
+        job = self.wait(json.loads(resp)["jobs"][0]["id"])
+        self.assertEqual(job["state"], "done", job)
+        self.assertEqual(SEEN["rules"].max_line, 37)                                 # TV stilius pasiekė variklį
+        self.assertEqual(open(os.path.join(d, "interviu.srt")).read(), "SENAS")
+        names = sorted(os.listdir(d))
+        for expected in ("interviu (2).srt", "interviu.vtt", "interviu.txt", "interviu.en.srt", "interviu.en.vtt", "interviu.wav"):
+            self.assertIn(expected, names)
+        self.assertEqual(job["folder"], d)
+        self.assertTrue(os.path.exists(src))                                         # originalas neištrintas
+        self.call("DELETE", "/api/jobs/" + job["id"])
+        self.assertTrue(os.path.exists(src))                                         # net pašalinus darbą
+        revealed = []
+        self.app.revealer = lambda path: revealed.append(path) or True
+
+    def test_local_job_refuses_unpicked_path_and_bad_options(self):
+        body = json.dumps({"paths": ["/etc/passwd"], "options": {"model": "base"}}).encode()
+        self.assertEqual(self.call("POST", "/api/jobs/local", body)[0], 403)
+        self.assertEqual(self.call("POST", "/api/jobs/local", json.dumps({"paths": ["/x"], "options": {"style": "zz"}}).encode())[0], 400)
+        self.assertEqual(self.call("POST", "/api/jobs/local", json.dumps({"paths": ["/x"], "options": {"outputs": ["exe"]}}).encode())[0], 400)
+        self.assertEqual(self.call("POST", "/api/jobs/local", b"{}", token=None)[0], 403)
+
+    def test_pick_unavailable_returns_501(self):
+        self.app.picker = lambda: None
+        self.assertEqual(self.call("POST", "/api/pick", b"")[0], 501)
+
+    def test_upload_with_outputs_saves_to_out_dir(self):
+        import tempfile
+        d = tempfile.mkdtemp()
+        q = urllib.parse.urlencode({"name": "a.wav", "model": "base", "outputs": "srt,json", "out_dir": d})
+        jid = json.loads(self.call("PUT", "/api/upload?" + q, b"garsas")[1])["id"]
+        self.assertEqual(self.wait(jid)["state"], "done")
+        self.assertEqual(sorted(os.listdir(d)), ["a.json", "a.srt"])
+        self.assertEqual(self.call("PUT", "/api/upload?name=a.wav&out_dir=relative", b"x")[0], 400)
+
+    def test_languages_endpoint(self):
+        doc = json.loads(self.call("GET", "/api/languages")[1])
+        self.assertIn("lv", doc["targets"])
+        self.assertTrue(doc["model_ready"])
 
     def test_system_report_endpoint(self):
         status, body, _ = self.call("GET", "/api/system")

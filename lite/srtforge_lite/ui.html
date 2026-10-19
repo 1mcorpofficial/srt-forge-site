@@ -35,6 +35,9 @@ button:disabled{opacity:.5;cursor:default}
 .line{display:grid;grid-template-columns:72px 1fr;gap:10px;padding:3px 0}.line time{color:var(--muted);font-variant-numeric:tabular-nums;font-size:13px}
 .line.hit{background:var(--hl)}
 .find{width:100%;margin-top:10px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}.chips label{flex:none;min-width:0;flex-direction:row;align-items:center;gap:6px;padding:5px 11px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--fg);font-size:13px;cursor:pointer}
+.chips label:has(input:checked){border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,var(--card))}.chips input{margin:0;accent-color:var(--accent)}
+.sect{font-size:13px;color:var(--muted);margin:16px 0 6px}.saved{font-size:13px;margin-top:8px;word-break:break-all}.saved code{background:var(--bg);padding:1px 5px;border-radius:4px}
 footer{margin-top:32px;color:var(--muted);font-size:12px}
 #update b{margin-right:8px}
 </style>
@@ -51,7 +54,7 @@ footer{margin-top:32px;color:var(--muted);font-size:12px}
     <div class="meta" id="sys-line"></div><div id="sys-msg" style="margin-top:6px"></div><div class="warn" id="sys-other"></div></div>
 
   <div class="tools">
-    <div class="drop" id="drop" tabindex="0"><b>Nutempk garso ar video failą čia</b><span>arba spustelėk, kad pasirinktum (galima keli)</span>
+    <div class="drop" id="drop" tabindex="0"><b>Nutempk garso ar video failą čia</b><span>arba spustelėk ir pasirink failus (galima keli) – rezultatas bus šalia originalo</span>
       <input type="file" id="file" accept="audio/*,video/*,.mkv,.m4a,.opus,.flac" multiple hidden></div>
     <button class="mic" id="mic" type="button"><b id="mic-title">Diktuoti</b><span id="mic-hint">mikrofonu</span></button>
   </div>
@@ -62,6 +65,13 @@ footer{margin-top:32px;color:var(--muted);font-size:12px}
     <label>Modelis<select id="model"></select></label>
     <label>Kalbėtojai<select id="speakers"><option value="off">Neskirti</option><option value="auto">Atpažinti automatiškai</option><option value="2">2 kalbėtojai</option><option value="3">3 kalbėtojai</option><option value="4">4 kalbėtojai</option><option value="5">5 kalbėtojų</option><option value="6">6 kalbėtojų</option></select></label>
   </div>
+  <div class="row"><label>Subtitrų stilius<select id="style"><option value="standard">Standartinis (42 simb., iki 7 s)</option><option value="tv">Televizijai (37 simb., iki 6 s)</option><option value="social">Socialiniams tinklams (trumpi, iki 3,5 s)</option></select></label></div>
+  <div class="sect">Ką sukurti (failai bus įrašyti pasirinkus failą lange – šalia originalo)</div>
+  <div class="chips" id="outputs">
+    <label><input type="checkbox" value="srt" checked>.srt</label><label><input type="checkbox" value="vtt">.vtt</label><label><input type="checkbox" value="txt">.txt</label><label><input type="checkbox" value="json">.json</label>
+    <label><input type="checkbox" value="soft">video su subtitrų takeliu</label><label><input type="checkbox" value="burn">video su įdegtais subtitrais</label></div>
+  <div class="sect">Išversti ir į (galima keli; vertimas yra orientacinis, peržiūrėk prieš naudojant)</div>
+  <div class="chips" id="targets"></div>
   <div class="row"><label>Vardai ir terminai (nebūtina, padeda atpažinti)<input type="text" id="prompt" placeholder="pvz. Jonas, Pricelio, Kaunas"></label></div>
 
   <div id="jobs"></div>
@@ -79,6 +89,8 @@ let info = null;
 async function boot() {
   info = await (await fetch("/api/info", {headers: hdr})).json();
   const sys = await (await fetch("/api/system", {headers: hdr})).json();
+  const langs = await (await fetch("/api/languages", {headers: hdr})).json();
+  for (const [code, name] of Object.entries(langs.targets)) $("targets").insertAdjacentHTML("beforeend", `<label><input type="checkbox" value="${esc(code)}">${esc(name)}</label>`);
   const sel = $("model");
   for (const m of sys.models) {
     const o = document.createElement("option");
@@ -103,11 +115,26 @@ async function boot() {
 }
 
 /* ——— įkėlimas ir diktavimas ——— */
+const checked = id => [...document.querySelectorAll(`#${id} input:checked`)].map(i => i.value).join(",");
+function options() {
+  const o = {model: $("model").value, language: $("language").value, task: $("task").value, speakers: $("speakers").value,
+    style: $("style").value, outputs: checked("outputs"), targets: checked("targets")};
+  if ($("prompt").value.trim()) o.prompt = $("prompt").value.trim();
+  return o;
+}
 function upload(blob, name) {
-  const q = new URLSearchParams({name, model: $("model").value, language: $("language").value, task: $("task").value, speakers: $("speakers").value});
-  if ($("prompt").value.trim()) q.set("prompt", $("prompt").value.trim());
+  const q = new URLSearchParams({name, ...options()});
   return fetch("/api/upload?" + q, {method: "PUT", headers: hdr, body: blob})
     .then(r => r.json()).then(j => { if (j.error) alert(j.error); refresh(); return j; });
+}
+async function pickFiles() {
+  const r = await fetch("/api/pick", {method: "POST", headers: hdr});
+  if (r.status === 501) { input.click(); return; }
+  const picked = (await r.json()).paths || [];
+  if (!picked.length) return;
+  const j = await (await fetch("/api/jobs/local", {method: "POST", headers: hdr, body: JSON.stringify({paths: picked.map(p => p.path), options: options()})})).json();
+  if (j.error) alert(j.error);
+  refresh();
 }
 
 let recorder = null, recChunks = [], recTimer = null, recStart = 0, recStream = null;
@@ -151,7 +178,7 @@ async function refresh() {
 }
 function paint(el, j) {
   const done = j.state === "done", live = j.state === "running" || j.state === "waiting";
-  const sig = [j.state, j.stage, j.error, j.embed.state, j.embed.error, j.cues, expanded.has(j.id), (j.warnings || []).length, (j.speakers || []).map(x => x.name).join(",")].join("|");
+  const sig = [j.state, j.stage, j.error, j.embed.state, j.embed.error, j.cues, expanded.has(j.id), (j.warnings || []).length, (j.speakers || []).map(x => x.name).join(","), (j.saved || []).join(","), (j.translations || []).join(",")].join("|");
   if (!done) { // eiga: atnaujinam tik juostą ir tekstą
     if (el.dataset.mode !== "live" || el.dataset.sig !== sig) {
       el.dataset.mode = "live"; el.dataset.sig = sig;
@@ -167,15 +194,17 @@ function paint(el, j) {
   }
   if (el.dataset.sig === sig && el.dataset.mode === "done") return;
   el.dataset.mode = "done"; el.dataset.sig = sig;
-  const dl = (f, label, primary) => `<a class="btn ${primary ? "primary" : ""}" href="/api/jobs/${j.id}/${f}?t=${T}">${label}</a>`;
+  const dl = (f, label, primary, lang) => `<a class="btn ${primary ? "primary" : ""}" href="/api/jobs/${j.id}/${f}?${lang ? `lang=${lang}&` : ""}t=${T}">${label}</a>`;
   const embedState = j.embed.state;
   el.innerHTML = `<h3><span>${esc(j.name)}</span><span class="tag">${j.task === "translate" ? "vertimas į anglų" : "transkripcija"}${j.language ? " · " + esc(j.language) : ""} · ${j.cues} segm.</span></h3>
     ${(j.warnings || []).map(w => `<div class="warn">⚠ ${esc(w)}</div>`).join("")}
     ${(j.speakers || []).length ? `<div class="group">Kalbėtojai (įrašyk vardus ir išsaugok, jie atsiras visuose failuose)</div>
       <div class="actions">${j.speakers.map(x => `<input type="text" class="spk" data-id="${x.id}" value="${esc(x.name)}" style="width:150px;margin:8px 8px 0 0;font:inherit;padding:6px 9px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--fg)">`).join("")}<button data-act="names">Išsaugoti vardus</button></div>` : ""}
+    ${(j.saved || []).length ? `<div class="saved">✓ Įrašyta: ${j.saved.map(n => `<code>${esc(n)}</code>`).join(" ")} <button data-act="reveal" class="primary" style="margin:0 0 0 6px">Rodyti aplanke</button></div>` : ""}
     <div class="actions"><button data-act="copy" class="primary">Kopijuoti tekstą</button><button data-act="view">${expanded.has(j.id) ? "Slėpti transkriptą" : "Rodyti transkriptą"}</button><span class="gap"></span><button data-act="remove">Pašalinti</button></div>
     <div class="group">Atsisiųsti</div>
     <div class="actions">${dl("txt", "Tekstas .txt")}${dl("srt", "Subtitrai .srt")}${dl("vtt", ".vtt")}${dl("ts", "Su laikais")}${dl("json", "JSON (žodžių laikai)")}</div>
+    ${(j.translations || []).length ? `<div class="group">Vertimai</div><div class="actions">${j.translations.map(l => `<span class="tag" style="margin:8px 4px 0 0">${esc(l)}</span>${dl("srt", ".srt", false, l)}${dl("vtt", ".vtt", false, l)}${dl("txt", ".txt", false, l)}`).join("")}</div>` : ""}
     ${j.has_video ? `<div class="group">Video</div><div class="actions">
         <button data-act="soft" ${embedState === "running" ? "disabled" : ""}>Subtitrai kaip takelis</button>
         <button data-act="burn" ${embedState === "running" ? "disabled" : ""}>Subtitrai įdegti į vaizdą</button>
@@ -208,14 +237,15 @@ function bind(el, j) {
       const names = {}; el.querySelectorAll(".spk").forEach(i => { if (i.value.trim()) names[i.dataset.id] = i.value.trim(); });
       await fetch(`/api/jobs/${j.id}/speakers`, {method: "POST", headers: hdr, body: JSON.stringify({names})}); transcripts.delete(j.id);
     }
+    if (act === "reveal") { await fetch(`/api/jobs/${j.id}/reveal`, {method: "POST", headers: hdr}); return; }
     if (act === "soft" || act === "burn") { const r = await fetch(`/api/jobs/${j.id}/embed?mode=${act}`, {method: "POST", headers: hdr}); const x = await r.json(); if (x.error) alert(x.error); }
     refresh();
   });
 }
 
 const drop = $("drop"), input = $("file");
-drop.onclick = () => input.click();
-drop.onkeydown = e => { if (e.key === "Enter" || e.key === " ") input.click(); };
+drop.onclick = pickFiles;
+drop.onkeydown = e => { if (e.key === "Enter" || e.key === " ") pickFiles(); };
 input.onchange = () => { [...input.files].forEach(f => upload(f, f.name)); input.value = ""; };
 ["dragenter", "dragover"].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add("over"); }));
 ["dragleave", "drop"].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove("over"); }));
