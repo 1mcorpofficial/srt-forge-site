@@ -7,7 +7,7 @@ name = "srtforge-lite"
 dynamic = ["version"]
 description = "SRT Forge Lite: vietinė garso/video transkripcija į subtitrus (Windows, macOS, Linux)"
 requires-python = ">=3.9"
-dependencies = ["faster-whisper>=1.0", "imageio-ffmpeg>=0.4", "cryptography>=41"]
+dependencies = ["faster-whisper>=1.0", "av>=11,<19", "imageio-ffmpeg>=0.4", "cryptography>=41"]
 
 [project.scripts]
 srtforge = "srtforge_lite.server:main"

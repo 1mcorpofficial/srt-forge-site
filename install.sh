@@ -46,7 +46,7 @@ mkdir -p "$HOME_DIR" "$BIN_DIR"
 VPY="$HOME_DIR/venv/bin/python"
 "$VPY" -m pip install --quiet --upgrade pip
 say "Diegiamos priklausomybės (kelios minutės, ~300 MB)..."
-"$VPY" -m pip install --quiet "faster-whisper>=1.0" "imageio-ffmpeg>=0.4" "cryptography>=41"
+"$VPY" -m pip install --quiet "faster-whisper>=1.0" "av>=11,<19" "imageio-ffmpeg>=0.4" "cryptography>=41"
 
 # 3. Manifestas -> parašas -> sha256 -> diegimas
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT

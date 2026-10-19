@@ -25,7 +25,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Priklausomybės
-        run: python -m pip install --upgrade pip pyinstaller faster-whisper imageio-ffmpeg cryptography
+        run: python -m pip install --upgrade pip pyinstaller faster-whisper imageio-ffmpeg cryptography "av>=11,<19"
       - name: Testai (Linux; kitose OS tikrina dūmų testas)
         if: runner.os == 'Linux'
         run: python -m unittest discover -s lite/tests -t lite
