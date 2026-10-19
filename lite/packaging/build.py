@@ -73,7 +73,8 @@ def pyinstaller(workdir: str, windowed: bool) -> str:
            "--hidden-import", "srtforge_lite.server", "--hidden-import", "srtforge_lite.updater", "--hidden-import", "srtforge_lite.window", "--hidden-import", "srtforge_lite.mcp_server", "--hidden-import", "srtforge_lite.live", "--hidden-import", "srtforge_lite.files", "--hidden-import", "srtforge_lite.translate",
            "--add-data", os.path.join(LITE, "srtforge_lite", "ui.html") + os.pathsep + "srtforge_lite",
            "--add-data", os.path.join(LITE, "srtforge_lite", "overlay.html") + os.pathsep + "srtforge_lite",
-           "--add-data", os.path.join(LITE, "srtforge_lite", "worklet.js") + os.pathsep + "srtforge_lite"]
+           "--add-data", os.path.join(LITE, "srtforge_lite", "worklet.js") + os.pathsep + "srtforge_lite",
+           "--add-data", os.path.join(LITE, "srtforge_lite", "fonts") + os.pathsep + os.path.join("srtforge_lite", "fonts")]
     if sys.platform == "darwin":
         cmd += ["--collect-all", "webview", "--hidden-import", "webview.platforms.cocoa"]
     if windowed:
@@ -195,7 +196,28 @@ def build_windows(dist: str, out: str) -> str:
     return target
 
 
+MAC_DEPS = ["faster-whisper>=1.0", "av==14.2.0", "imageio-ffmpeg>=0.4", "cryptography>=41", "sherpa-onnx>=1.10",
+            "sentencepiece>=0.1.99", "numpy>=1.26,<2", "onnxruntime==1.19.2", "pywebview>=5", "pyinstaller"]
+
+
+def reexec_in_standalone() -> int:
+    """macOS: CI Python naudoja Homebrew OpenSSL (reikalauja macOS 15). Statinį OpenSSL turintis python-build-standalone veikia ir senesnėse."""
+    work = tempfile.mkdtemp(prefix="srtforge-venv-")
+    run([sys.executable, "-m", "pip", "install", "--quiet", "uv"])
+    env = dict(os.environ, UV_PYTHON_PREFERENCE="only-managed")
+    venv = os.path.join(work, "venv")
+    run([sys.executable, "-m", "uv", "python", "install", "3.12"], env=env)
+    run([sys.executable, "-m", "uv", "venv", "--python", "3.12", venv], env=env)
+    py = os.path.join(venv, "bin", "python")
+    run([sys.executable, "-m", "uv", "pip", "install", "--python", py, "--only-binary", ":all:", *MAC_DEPS], env=env)
+    run([py, "-c", "import sys,ssl;print(sys.version, sys.executable, ssl.OPENSSL_VERSION)"])
+    env["SRTFORGE_STANDALONE"] = "1"
+    return subprocess.run([py, os.path.abspath(__file__), *sys.argv[1:]], env=env).returncode
+
+
 def main() -> int:
+    if platform.system() == "Darwin" and not os.environ.get("SRTFORGE_STANDALONE"):
+        return reexec_in_standalone()
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", default=os.path.join(os.path.dirname(LITE), "dist-lite"))
     parser.add_argument("--public-key", default=os.environ.get("SRTFORGE_UPDATE_PUBLIC_KEY", ""))

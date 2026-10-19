@@ -26,6 +26,7 @@ from . import files as fl
 from . import live as lv
 
 UI_PATH = os.path.join(os.path.dirname(__file__), "ui.html")
+FONT_DIR = os.path.join(os.path.dirname(__file__), "fonts")
 OVERLAY_PATH = os.path.join(os.path.dirname(__file__), "overlay.html")
 # fmt -> (Content-Type, plėtinys, atvaizdavimas pagal darbą)
 FORMATS = {
@@ -76,6 +77,7 @@ class Job:
         self.id = uuid.uuid4().hex[:12]
         self.owned = owned                     # False = vartotojo originalas, jo niekada netriname
         self.saved: list = []                  # automatiškai įrašyti failai (pilni keliai)
+        self.saved_kinds: dict = {}            # kelias -> (formatas, kalba) tekstiniams failams, kuriuos galima perrašyti po taisymų
         self.name = name
         self.path = path
         self.options = options
@@ -258,6 +260,32 @@ class App:
                 with open(final, "w", encoding="utf-8", newline="") as handle:
                     handle.write(render(job, cues))
                 job.saved.append(final)
+                job.saved_kinds[final] = (fmt, tag.lstrip("."))
+
+    def apply_edits(self, job: Job, edits: list) -> int:
+        """Vartotojo pataisyti subtitrai (tekstas ir laikai). Perrašo mūsų pačių sukurtus tekstinius failus."""
+        if len(edits) != len(job.cues):
+            raise ValueError("eilučių skaičius pasikeitė")
+        cleaned = []
+        for old, new in zip(job.cues, edits):
+            start, end = float(new["start"]), float(new["end"])
+            text = str(new["text"]).strip()
+            if not (0 <= start < end <= start + 600):
+                raise ValueError(f"neteisingi laikai eilutėje: {text[:30]!r}")
+            cleaned.append((old, start, end, text))
+        for old, start, end, text in cleaned:
+            old.start, old.end, old.text = start, end, text
+            old.words = []                                          # žodžių laikai nebetinka pakeistam tekstui
+        job.translations.clear()                                    # vertimai buvo iš seno teksto
+        rewritten = 0
+        for path, (fmt, lang) in list(job.saved_kinds.items()):
+            if lang:
+                continue
+            ctype, ext, render = FORMATS[fmt]
+            with open(path, "w", encoding="utf-8", newline="") as handle:
+                handle.write(render(job, job.cues))
+            rewritten += 1
+        return rewritten
 
     def embed_worker(self, job: Job, mode: str, lang: str = "") -> None:
         job.embed = {"state": "running", "mode": mode, "error": None, "path": None, "name": None}
@@ -330,6 +358,13 @@ class App:
             def do_GET(self):
                 parsed = urllib.parse.urlparse(self.path)
                 path = parsed.path
+                if path.startswith("/fonts/") and (self.headers.get("Host") or "").split(":")[0] in ("127.0.0.1", "localhost"):
+                    name = os.path.basename(path)                  # tik pačios programos šriftai, be tokeno (CSS užklausos jo neneša)
+                    full = os.path.join(FONT_DIR, name)
+                    if name.endswith(".woff2") and os.path.isfile(full):
+                        with open(full, "rb") as handle:
+                            return self._send(200, handle.read(), "font/woff2", {"Cache-Control": "max-age=86400"})
+                    return self._json(404, {"error": "nerasta"})
                 if not self._authorized():
                     return self._json(403, {"error": "forbidden"})
                 if path == "/":
@@ -384,7 +419,7 @@ class App:
                     if fmt == "transcript" and job.state == "done":
                         return self._json(200, {"language": job.language, "task": job.options.get("task", "transcribe"),
                                                 "speakers": job.speaker_list(),
-                                                "cues": [{"start": c.start, "end": c.end, "text": c.text.replace("\n", " "),
+                                                "cues": [{"start": c.start, "end": c.end, "text": c.text.replace("\n", " "), "raw": c.text,
                                                           "speaker": c.speaker, "speaker_name": speaker_label(c.speaker, job.speaker_names)}
                                                          for c in job.cues]})
                     if fmt == "video" and job.embed.get("state") == "done" and job.embed.get("path"):
@@ -517,6 +552,17 @@ class App:
                     threading.Thread(target=app.embed_worker, args=(job, mode, lang), daemon=True).start()
                     time.sleep(0.05)
                     return self._json(200, job.public())
+                if len(parts) == 4 and parts[:2] == ["api", "jobs"] and parts[3] == "cues":
+                    job = app.jobs.get(parts[2])
+                    if not job or job.state != "done":
+                        return self._json(404, {"error": "nerasta"})
+                    try:
+                        length = min(int(self.headers.get("Content-Length") or 0), 5_000_000)
+                        edits = json.loads(self.rfile.read(length) or b"{}")["cues"]
+                        rewritten = app.apply_edits(job, edits)
+                    except (ValueError, TypeError, KeyError) as error:
+                        return self._json(400, {"error": f"neteisingi subtitrai: {error}"})
+                    return self._json(200, {**job.public(), "rewritten": rewritten})
                 if len(parts) == 4 and parts[:2] == ["api", "jobs"] and parts[3] == "speakers":
                     job = app.jobs.get(parts[2])
                     if not job or job.state != "done":

@@ -3,154 +3,294 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SRT Forge Lite</title>
+<meta name="color-scheme" content="dark light">
+<title>SRT Forge</title>
 <style>
-:root{--bg:#f6f5f2;--fg:#1c1b19;--muted:#6b6a66;--card:#fff;--line:#e3e1db;--accent:#1f6f5c;--accent-fg:#fff;--warn:#9a5b00;--err:#b3261e;--rec:#d92d20;--hl:#fff3b0}
-@media (prefers-color-scheme:dark){:root{--bg:#121211;--fg:#eceae4;--muted:#9a978f;--card:#1c1b19;--line:#33312c;--accent:#4cb89c;--accent-fg:#0d1f1a;--warn:#e0a24a;--err:#f2827a;--rec:#ff6b5e;--hl:#4a4310}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}
-main{max-width:860px;margin:0 auto;padding:32px 16px 72px}
-h1{font-size:24px;margin:0 0 2px;letter-spacing:-.01em}p.sub{margin:0 0 22px;color:var(--muted)}
-.tools{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:stretch}
-@media (max-width:640px){.tools{grid-template-columns:1fr}}
-.drop{border:2px dashed var(--line);border-radius:14px;background:var(--card);padding:34px 16px;text-align:center;cursor:pointer;transition:border-color .15s}
-.drop.over{border-color:var(--accent)}.drop b{display:block;font-size:17px;margin-bottom:4px}.drop span{color:var(--muted)}
-.mic{border:2px solid var(--line);border-radius:14px;background:var(--card);padding:18px 26px;cursor:pointer;font:inherit;color:inherit;min-width:190px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
-.mic:hover{border-color:var(--accent)}.mic b{font-size:17px}.mic span{color:var(--muted);font-size:13px}
-.mic.rec{border-color:var(--rec);background:color-mix(in srgb,var(--rec) 10%,var(--card))}
-.mic.rec b::before{content:"";display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--rec);margin-right:8px;animation:pulse 1s infinite}
-@keyframes pulse{50%{opacity:.3}}
-.row{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0}label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);flex:1;min-width:160px}
-select,input[type=text]{font:inherit;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--fg)}
-.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-top:12px}
-.card h3{margin:0 0 6px;font-size:15px;word-break:break-all;display:flex;justify-content:space-between;gap:10px}
-.tag{font-size:12px;color:var(--muted);font-weight:500;white-space:nowrap}
-.bar{height:6px;background:var(--line);border-radius:3px;overflow:hidden}.bar i{display:block;height:100%;background:var(--accent);width:0;transition:width .3s}
-.meta{font-size:13px;color:var(--muted);margin-top:6px}.warn{color:var(--warn);font-size:13px;margin-top:6px}.err{color:var(--err);margin-top:6px}
-button,a.btn{font:inherit;padding:7px 13px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer;text-decoration:none;display:inline-block;margin:8px 8px 0 0}
-button:hover,a.btn:hover{border-color:var(--accent)}button.primary,a.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
-button:disabled{opacity:.5;cursor:default}
-.actions{display:flex;flex-wrap:wrap;align-items:center}.actions .gap{flex:1}
-.group{font-size:12px;color:var(--muted);margin:10px 0 0}
-.view{margin-top:10px;max-height:280px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--bg)}
-.line{display:grid;grid-template-columns:72px 1fr;gap:10px;padding:3px 0}.line time{color:var(--muted);font-variant-numeric:tabular-nums;font-size:13px}
-.line.hit{background:var(--hl)}
-.find{width:100%;margin-top:10px}
-.chips{display:flex;flex-wrap:wrap;gap:6px}.chips label{flex:none;min-width:0;flex-direction:row;align-items:center;gap:6px;padding:5px 11px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--fg);font-size:13px;cursor:pointer}
-.chips label:has(input:checked){border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,var(--card))}.chips input{margin:0;accent-color:var(--accent)}
-.sect{font-size:13px;color:var(--muted);margin:16px 0 6px}.saved{font-size:13px;margin-top:8px;word-break:break-all}.saved code{background:var(--bg);padding:1px 5px;border-radius:4px}
-footer{margin-top:32px;color:var(--muted);font-size:12px}
-#update b{margin-right:8px}
+@font-face{font-family:"Bricolage";font-weight:200 800;font-display:swap;src:url(/fonts/bricolage-latin-ext.woff2) format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:"Bricolage";font-weight:200 800;font-display:swap;src:url(/fonts/bricolage-latin.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"Serif";font-style:normal;font-weight:400;font-display:swap;src:url(/fonts/instrument-serif-latin-ext-400-normal.woff2) format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:"Serif";font-style:normal;font-weight:400;font-display:swap;src:url(/fonts/instrument-serif-latin-400-normal.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"Serif";font-style:italic;font-weight:400;font-display:swap;src:url(/fonts/instrument-serif-latin-ext-400-italic.woff2) format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:"Serif";font-style:italic;font-weight:400;font-display:swap;src:url(/fonts/instrument-serif-latin-400-italic.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+
+:root{--bg:#08090b;--rail:#0d0e11;--panel:#121317;--panel2:#181a1f;--line:#23252b;--fg:#f3f0e8;--muted:#8a8d94;--dim:#3a3c41;
+  --yellow:#ffd83a;--ink:#16130a;--red:#ff4b2b;--ok:#4fd29a;--warn:#f0a84a;--hl:#3b3410;
+  --display:"Bricolage","Helvetica Neue",Arial,system-ui,sans-serif;--serif:"Serif",Georgia,"Times New Roman",serif;--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+@media (prefers-color-scheme:light){:root{--bg:#f4f1ea;--rail:#ebe7dc;--panel:#fffdf8;--panel2:#f7f3ea;--line:#ddd7c8;--fg:#17150f;--muted:#6d6a60;--dim:#bdb8a8;--hl:#fff0a8;--ok:#14855a;--warn:#a35f00;--red:#d8321a}}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 var(--display);-webkit-font-smoothing:antialiased}
+:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+button,select,input,textarea{font:inherit;color:inherit}
+.app{display:grid;grid-template-columns:240px minmax(0,1fr);min-height:100%}
+@media (max-width:860px){.app{grid-template-columns:1fr}}
+
+.rail{background:var(--rail);border-right:1px solid var(--line);padding:22px 14px;display:flex;flex-direction:column;gap:6px;position:sticky;top:0;height:100vh}
+@media (max-width:860px){.rail{position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;padding:12px}.rail .push,.rail .syscard{display:none}}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;letter-spacing:-.01em;padding:0 10px 18px}
+.brand i{width:12px;height:12px;border-radius:50%;background:var(--red);box-shadow:0 0 0 4px color-mix(in srgb,var(--red) 28%,transparent)}
+.nav{display:flex;align-items:center;gap:11px;border:0;background:none;text-align:left;padding:10px 12px;border-radius:10px;color:var(--muted);cursor:pointer;font-weight:600}
+.nav svg{width:19px;height:19px;flex:none}
+.nav:hover{color:var(--fg);background:color-mix(in srgb,var(--fg) 6%,transparent)}
+.nav[aria-current=true]{color:var(--ink);background:var(--yellow)}
+.nav.rec{color:var(--red)}.nav.rec b::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--red);margin-right:8px;animation:pulse 1s infinite}
+.nav small{display:block;font-weight:500;font-size:12px;color:var(--muted)}
+@keyframes pulse{50%{opacity:.25}}
+.push{flex:1}
+.syscard,.updcard{border:1px solid var(--line);border-radius:12px;padding:12px 13px;font-size:13px;color:var(--muted);background:var(--panel)}
+.syscard b,.updcard b{color:var(--fg);display:block;margin-bottom:2px;font-size:13px}
+.updcard{border-color:var(--yellow);margin-bottom:6px}
+.ver{font-size:12px;color:var(--muted);padding:8px 10px 0}
+.ver a{color:var(--muted)}
+
+main{padding:clamp(22px,4vw,48px) clamp(18px,4vw,56px) 80px;max-width:1080px;width:100%}
+.eyebrow{font:700 12px var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+h1{font:400 clamp(34px,5vw,56px)/1.02 var(--serif);margin:8px 0 10px;letter-spacing:-.01em}
+h1 em{color:var(--yellow)}
+@media (prefers-color-scheme:light){h1 em{color:#a87400}}
+.lead{color:var(--muted);max-width:60ch;margin:0 0 26px;font-size:16px}
+[hidden]{display:none!important}
+
+.drop{border:2px dashed var(--dim);border-radius:20px;background:var(--panel);padding:40px 22px;text-align:center;transition:border-color .15s,background .15s}
+.drop.over{border-color:var(--yellow);background:color-mix(in srgb,var(--yellow) 8%,var(--panel))}
+.drop h2{font:700 22px var(--display);margin:0 0 6px;letter-spacing:-.01em}
+.drop p{margin:0 0 18px;color:var(--muted)}
+.drop .hint{font-size:13px;margin:14px 0 0}
+.btn{border:1px solid var(--line);background:var(--panel2);border-radius:999px;padding:9px 18px;cursor:pointer;font-weight:700;font-size:14px;text-decoration:none;display:inline-flex;align-items:center;gap:8px;color:var(--fg)}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--yellow);color:var(--ink);border-color:var(--yellow)}
+.btn.primary:hover{filter:brightness(1.06)}
+.btn.big{padding:14px 28px;font-size:16px}
+.btn.small{padding:5px 12px;font-size:13px}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.danger:hover{border-color:var(--red);color:var(--red)}
+
+.recipe{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}
+@media (max-width:900px){.recipe{grid-template-columns:1fr}}
+.box{border:1px solid var(--line);border-radius:16px;background:var(--panel);padding:16px 16px 14px}
+.box h3{margin:0 0 11px;font:700 12px var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+select,input[type=text]{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:9px 11px}
+select:focus,input[type=text]:focus,textarea:focus{border-color:var(--yellow);outline:none}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-top:10px}
+.seg label{flex:1;text-align:center;padding:7px 6px;font-size:13px;cursor:pointer;color:var(--muted);font-weight:600}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg label:has(input:checked){background:var(--fg);color:var(--bg)}
+.styles{display:grid;gap:8px}
+.style{display:flex;gap:11px;align-items:center;border:1px solid var(--line);border-radius:11px;padding:9px 11px;cursor:pointer;background:var(--panel2)}
+.style input{accent-color:var(--yellow);margin:0}
+.style:has(input:checked){border-color:var(--yellow);background:color-mix(in srgb,var(--yellow) 9%,var(--panel2))}
+.style b{display:block;font-size:14px}.style span{font-size:12px;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.chips label{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:999px;padding:6px 12px;cursor:pointer;font-size:13px;font-weight:600;background:var(--panel2);color:var(--muted)}
+.chips label:has(input:checked){border-color:var(--yellow);color:var(--fg);background:color-mix(in srgb,var(--yellow) 12%,var(--panel2))}
+.chips input{accent-color:var(--yellow);margin:0}
+details.more{margin-top:12px;border:1px solid var(--line);border-radius:16px;background:var(--panel)}
+details.more summary{cursor:pointer;padding:13px 16px;font-weight:700;list-style:none;display:flex;justify-content:space-between;color:var(--muted)}
+details.more summary::after{content:"+";font-size:18px;line-height:1}
+details.more[open] summary::after{content:"–"}
+details.more .inner{padding:0 16px 16px;display:grid;gap:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:640px){.grid2{grid-template-columns:1fr}}
+.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;font-weight:600}
+
+#jobs{margin-top:30px;display:grid;gap:14px}
+.job{border:1px solid var(--line);border-radius:18px;background:var(--panel);overflow:hidden}
+.job-head{display:flex;align-items:center;gap:12px;padding:15px 18px}
+.file-ico{width:38px;height:38px;border-radius:10px;background:var(--panel2);display:grid;place-items:center;color:var(--yellow);flex:none}
+.job-name{font-weight:700;font-size:16px;word-break:break-all}
+.meta{font-size:13px;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:2px}
+.pill{border:1px solid var(--line);border-radius:999px;padding:1px 9px;font-size:12px;color:var(--muted)}
+.job-head .grow{flex:1;min-width:0}
+.bar{height:8px;background:var(--line);border-radius:4px;overflow:hidden;margin:0 18px}
+.bar i{display:block;height:100%;width:0;background:var(--yellow);transition:width .4s}
+.stage{padding:10px 18px 16px;color:var(--muted);font-size:13px;display:flex;justify-content:space-between;gap:10px}
+.err{color:var(--red);padding:0 18px 14px}
+.warn{color:var(--warn);font-size:13px;padding:0 18px 8px}
+.saved{margin:0 18px 12px;padding:11px 14px;border-radius:12px;background:color-mix(in srgb,var(--ok) 11%,var(--panel2));font-size:13px;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.saved .ok{color:var(--ok);font-weight:700}
+.saved code{font:12px var(--mono);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:2px 7px}
+.tabs{display:flex;gap:2px;padding:0 12px;border-bottom:1px solid var(--line);overflow-x:auto}
+.tab{border:0;background:none;padding:11px 14px;color:var(--muted);cursor:pointer;font-weight:700;border-bottom:2px solid transparent;white-space:nowrap}
+.tab[aria-selected=true]{color:var(--fg);border-bottom-color:var(--yellow)}
+.pane{padding:16px 18px 18px}
+.bar-tools{display:flex;gap:10px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.bar-tools input[type=text]{max-width:280px}
+.bar-tools .grow{flex:1}
+.cues{max-height:520px;overflow:auto;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
+.cue{display:grid;grid-template-columns:34px 108px 1fr 52px;gap:10px;padding:9px 10px;border-bottom:1px solid var(--line);align-items:start}
+.cue:last-child{border-bottom:0}
+.cue.hit{background:var(--hl)}
+.cue .n{color:var(--muted);font:12px var(--mono);padding-top:8px}
+.cue .t{display:grid;gap:4px}
+.cue .t input{width:100%;font:12px var(--mono);padding:4px 6px;border-radius:7px;background:var(--panel2);border:1px solid var(--line);color:var(--muted)}
+.cue textarea{width:100%;resize:vertical;min-height:44px;background:transparent;border:1px solid transparent;border-radius:8px;padding:6px 8px;line-height:1.35}
+.cue textarea:hover{border-color:var(--line)}
+.cue .spk{font-size:12px;font-weight:700;color:var(--yellow);margin:0 0 2px 8px}
+.cue .cps{font:11px var(--mono);color:var(--muted);text-align:right;padding-top:8px}
+.cue .cps.bad{color:var(--warn);font-weight:700}
+.dl{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:9px}
+.dl .btn{justify-content:center}
+.sub-h{font:700 12px var(--display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:16px 0 8px}
+.sub-h:first-child{margin-top:0}
+pre.txt{white-space:pre-wrap;margin:0;max-height:420px;overflow:auto;font:14px/1.6 var(--display);background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:14px}
+.names{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+.names input{width:160px}
+
+.livebox{border:1px solid var(--line);border-radius:18px;background:var(--panel);padding:18px}
+.screen{background:#000;color:#fff;border-radius:12px;min-height:170px;padding:22px;display:flex;flex-direction:column;justify-content:flex-end;gap:8px;font:700 clamp(20px,3vw,30px)/1.25 var(--display)}
+.screen .p{opacity:.6}.screen .tr{font-size:.65em;font-weight:500;opacity:.8}
+.links code{display:block;font:12px var(--mono);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 9px;margin:6px 0;word-break:break-all}
+.toast{position:fixed;right:18px;bottom:18px;max-width:420px;background:var(--fg);color:var(--bg);border-radius:12px;padding:12px 16px;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.35);z-index:50}
+.toast.err{background:var(--red);color:#fff}
 </style>
 </head>
 <body>
-<main>
-  <h1>SRT Forge Lite</h1>
-  <p class="sub">Kalba į tekstą: transkripcija, subtitrai, vertimas ir diktavimas. Viskas vyksta tavo kompiuteryje, failai niekur nesiunčiami.</p>
+<div class="app">
+  <aside class="rail">
+    <div class="brand"><i></i>SRT Forge</div>
+    <button class="nav" data-view="files" aria-current="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg><span>Failai</span></button>
+    <button class="nav" data-view="live"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M7 21h10M12 17v4M7 10h6M7 13h10"/></svg><span>Gyvi subtitrai</span></button>
+    <button class="nav" id="mic" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><span><b id="mic-title">Diktuoti</b><small id="mic-hint">mikrofonu</small></span></button>
+    <div class="push"></div>
+    <div class="updcard" id="update" hidden><b id="update-text"></b><button class="btn small primary" id="update-btn" style="margin-top:8px">Atnaujinti</button><div id="update-msg" style="margin-top:6px"></div></div>
+    <div class="syscard" id="syscheck" hidden><b>Šis kompiuteris</b><span id="sys-line"></span><div id="sys-msg" style="margin-top:6px"></div></div>
+    <div class="ver">Versija __VERSION__ · <a href="#" id="to-browser" hidden>atidaryti naršyklėje</a><span id="local-only">tik šis kompiuteris</span></div>
+  </aside>
 
-  <div class="card" id="update" hidden style="margin:0 0 16px"><b id="update-text"></b>
-    <button id="update-btn" class="primary">Atsisiųsti ir įdiegti</button><span class="meta" id="update-msg"></span></div>
+  <main>
+    <section id="view-files">
+      <div class="eyebrow">Garsas ir video į subtitrus</div>
+      <h1>Įmesk failą.<br><em>Gauk subtitrus.</em></h1>
+      <p class="lead">Viskas vyksta šiame kompiuteryje, failai niekur nesiunčiami. Pasirink, ką sukurti, o rezultatas atsiras šalia originalo.</p>
 
-  <div class="card" id="syscheck" hidden style="margin:0 0 16px"><b>Sistemos patikra</b>
-    <div class="meta" id="sys-line"></div><div id="sys-msg" style="margin-top:6px"></div><div class="warn" id="sys-other"></div></div>
+      <div class="drop" id="drop">
+        <h2>Nutempk garso ar video failus čia</h2>
+        <p>arba pasirink juos kompiuteryje</p>
+        <button class="btn primary big" id="pick" type="button">Pasirinkti failus</button>
+        <input type="file" id="file" accept="audio/*,video/*,.mkv,.m4a,.opus,.flac" multiple hidden>
+        <p class="hint" id="drop-hint">Pasirinkti failai apdorojami vietoje, rezultatas įrašomas šalia jų.</p>
+      </div>
 
-  <div class="tools">
-    <div class="drop" id="drop" tabindex="0"><b>Nutempk garso ar video failą čia</b><span>arba spustelėk ir pasirink failus (galima keli) – rezultatas bus šalia originalo</span>
-      <input type="file" id="file" accept="audio/*,video/*,.mkv,.m4a,.opus,.flac" multiple hidden></div>
-    <div style="display:flex;flex-direction:column;gap:12px">
-      <button class="mic" id="mic" type="button"><b id="mic-title">Diktuoti</b><span id="mic-hint">mikrofonu</span></button>
-      <button class="mic" id="live-btn" type="button" style="padding:12px 26px"><b id="live-title">Gyvi subtitrai</b><span id="live-hint">realiu laiku, OBS / vMix</span></button>
-    </div>
-  </div>
-  <div class="card" id="live" hidden><b>Gyvi subtitrai</b> <span class="tag" id="live-meta"></span>
-    <div class="view" id="live-view" style="min-height:90px;max-height:220px;font-size:18px"></div>
-    <div class="meta" id="live-links"></div>
-    <div class="actions" id="live-dl"></div></div>
+      <div class="recipe">
+        <div class="box"><h3>Kalba</h3>
+          <select id="language"><option value="lt">Lietuvių</option><option value="en">English</option><option value="lv">Latviešu</option><option value="et">Eesti</option><option value="pl">Polski</option><option value="ru">Русский</option><option value="de">Deutsch</option><option value="fr">Français</option><option value="es">Español</option><option value="auto">Atpažinti automatiškai</option></select>
+          <div class="seg" role="radiogroup" aria-label="Užduotis"><label><input type="radio" name="task" value="transcribe" checked>Ta pati kalba</label><label><input type="radio" name="task" value="translate">Į anglų</label></div>
+        </div>
+        <div class="box"><h3>Subtitrų stilius</h3>
+          <div class="styles">
+            <label class="style"><input type="radio" name="style" value="standard" checked><div><b>Standartinis</b><span>42 simb. eilutėje, iki 7 s</span></div></label>
+            <label class="style"><input type="radio" name="style" value="tv"><div><b>Televizijai</b><span>37 simb., iki 6 s</span></div></label>
+            <label class="style"><input type="radio" name="style" value="social"><div><b>Socialiniams tinklams</b><span>trumpi, iki 3,5 s</span></div></label>
+          </div>
+        </div>
+        <div class="box"><h3>Rezultatas</h3>
+          <div class="chips" id="outputs">
+            <label><input type="checkbox" value="srt" checked>.srt</label><label><input type="checkbox" value="vtt">.vtt</label><label><input type="checkbox" value="txt">.txt</label><label><input type="checkbox" value="json">.json</label>
+            <label><input type="checkbox" value="soft">video + takelis</label><label><input type="checkbox" value="burn">video su įdegtais</label>
+          </div>
+        </div>
+      </div>
 
-  <div class="row">
-    <label>Užduotis<select id="task"><option value="transcribe">Transkribuoti (ta pačia kalba)</option><option value="translate">Versti į anglų kalbą</option></select></label>
-    <label>Kalba<select id="language"><option value="lt">Lietuvių</option><option value="en">English</option><option value="lv">Latviešu</option><option value="et">Eesti</option><option value="pl">Polski</option><option value="ru">Русский</option><option value="de">Deutsch</option><option value="fr">Français</option><option value="es">Español</option><option value="auto">Atpažinti automatiškai</option></select></label>
-    <label>Modelis<select id="model"></select></label>
-    <label>Kalbėtojai<select id="speakers"><option value="off">Neskirti</option><option value="auto">Atpažinti automatiškai</option><option value="2">2 kalbėtojai</option><option value="3">3 kalbėtojai</option><option value="4">4 kalbėtojai</option><option value="5">5 kalbėtojų</option><option value="6">6 kalbėtojų</option></select></label>
-  </div>
-  <div class="row"><label>Subtitrų stilius<select id="style"><option value="standard">Standartinis (42 simb., iki 7 s)</option><option value="tv">Televizijai (37 simb., iki 6 s)</option><option value="social">Socialiniams tinklams (trumpi, iki 3,5 s)</option></select></label></div>
-  <div class="sect">Ką sukurti (failai bus įrašyti pasirinkus failą lange – šalia originalo)</div>
-  <div class="chips" id="outputs">
-    <label><input type="checkbox" value="srt" checked>.srt</label><label><input type="checkbox" value="vtt">.vtt</label><label><input type="checkbox" value="txt">.txt</label><label><input type="checkbox" value="json">.json</label>
-    <label><input type="checkbox" value="soft">video su subtitrų takeliu</label><label><input type="checkbox" value="burn">video su įdegtais subtitrais</label></div>
-  <div class="sect">Išversti ir į (galima keli; vertimas yra orientacinis, peržiūrėk prieš naudojant)</div>
-  <div class="chips" id="targets"></div>
-  <div class="row"><label>Vardai ir terminai (nebūtina, padeda atpažinti)<input type="text" id="prompt" placeholder="pvz. Jonas, Pricelio, Kaunas"></label></div>
+      <details class="more"><summary>Išversti ir į kitas kalbas</summary><div class="inner"><div class="chips" id="targets"></div><div style="color:var(--muted);font-size:13px">Mašininis vertimas: tinka orientuotis, bet prieš skelbiant peržiūrėk.</div></div></details>
+      <details class="more"><summary>Daugiau nustatymų</summary><div class="inner">
+        <div class="grid2"><div class="field"><label for="model">Modelis</label><select id="model"></select></div>
+          <div class="field"><label for="speakers">Kalbėtojai</label><select id="speakers"><option value="off">Neskirti</option><option value="auto">Atpažinti automatiškai</option><option value="2">2 kalbėtojai</option><option value="3">3 kalbėtojai</option><option value="4">4 kalbėtojai</option><option value="5">5 kalbėtojai</option><option value="6">6 kalbėtojai</option></select></div></div>
+        <div class="field"><label for="prompt">Vardai ir terminai (padeda atpažinti)</label><input type="text" id="prompt" placeholder="pvz. Jonas, Pricelio, Kaunas"></div>
+      </div></details>
 
-  <div id="jobs"></div>
-  <footer>Versija __VERSION__ · tik šis kompiuteris (127.0.0.1) <a href="#" id="to-browser" hidden>· mikrofonas neveikia? Atidaryti naršyklėje</a></footer>
-</main>
+      <div id="jobs"></div>
+    </section>
+
+    <section id="view-live" hidden>
+      <div class="eyebrow">Realiu laiku</div>
+      <h1>Gyvi <em>subtitrai</em></h1>
+      <p class="lead">Kalbi į mikrofoną, o subtitrai rodomi iškart. Langą gali įdėti į OBS ar vMix kaip naršyklės šaltinį. Naudojama kalba, vertimo kalbos ir modelis iš skiltyje „Failai“ pasirinktų nustatymų.</p>
+      <div class="livebox">
+        <div class="bar-tools"><button class="btn primary big" id="live-btn" type="button"><span id="live-title">Pradėti</span></button><span class="meta" id="live-meta"></span></div>
+        <div class="screen" id="live-view"><span class="p">Čia atsiras subtitrai…</span></div>
+        <div class="links meta" id="live-links" style="display:block;margin-top:12px"></div>
+        <div class="dl" id="live-dl" style="margin-top:12px"></div>
+      </div>
+    </section>
+  </main>
+</div>
+<div class="toast" id="toast" hidden></div>
+
 <script>
 const T = "__TOKEN__";
 const $ = id => document.getElementById(id);
 const hdr = {"X-Token": T};
 const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const hms = s => { s = Math.max(0, Math.floor(s)); const p = n => String(n).padStart(2, "0"); return `${p(Math.floor(s / 3600))}:${p(Math.floor(s % 3600 / 60))}:${p(s % 60)}`; };
+const pad = n => String(n).padStart(2, "0");
+const hms = s => { s = Math.max(0, Math.floor(s)); return `${pad(Math.floor(s / 3600))}:${pad(Math.floor(s % 3600 / 60))}:${pad(s % 60)}`; };
+const tc = s => { s = Math.max(0, s); const ms = Math.round(s * 1000); return `${pad(Math.floor(ms / 3600000))}:${pad(Math.floor(ms % 3600000 / 60000))}:${pad(Math.floor(ms % 60000 / 1000))},${String(ms % 1000).padStart(3, "0")}`; };
+const untc = v => { const m = /^(\d+):(\d{1,2}):(\d{1,2})[,.](\d{1,3})$/.exec(v.trim()); return m ? (+m[1] * 3600 + +m[2] * 60 + +m[3] + +m[4].padEnd(3, "0") / 1000) : null; };
 const params = new URLSearchParams(location.search);
-let info = null;
+let info = null, toastTimer = null;
+function toast(msg, bad) { const t = $("toast"); t.textContent = msg; t.className = "toast" + (bad ? " err" : ""); t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => t.hidden = true, 6000); }
+
+document.querySelectorAll(".nav[data-view]").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".nav[data-view]").forEach(x => x.setAttribute("aria-current", x === b ? "true" : "false"));
+  $("view-files").hidden = b.dataset.view !== "files"; $("view-live").hidden = b.dataset.view !== "live";
+});
 
 async function boot() {
   info = await (await fetch("/api/info", {headers: hdr})).json();
-  if (info.window) { $("to-browser").hidden = false; $("to-browser").onclick = e => { e.preventDefault(); fetch("/api/open-browser", {method: "POST", headers: hdr}); }; }
-  const sys = await (await fetch("/api/system", {headers: hdr})).json();
+  if (info.window) { $("to-browser").hidden = false; $("local-only").hidden = true; $("to-browser").onclick = e => { e.preventDefault(); fetch("/api/open-browser", {method: "POST", headers: hdr}); }; }
+  $("drop-hint").textContent = `Pasirinkti failai apdorojami vietoje, rezultatas įrašomas šalia jų. Nutempti failai įrašomi čia: ${info.out_dir}`;
   const langs = await (await fetch("/api/languages", {headers: hdr})).json();
   for (const [code, name] of Object.entries(langs.targets)) $("targets").insertAdjacentHTML("beforeend", `<label><input type="checkbox" value="${esc(code)}">${esc(name)}</label>`);
+  const sys = await (await fetch("/api/system", {headers: hdr})).json();
   const sel = $("model");
   for (const m of sys.models) {
-    const o = document.createElement("option");
-    o.value = m.name;
-    o.textContent = `${m.name}: ${m.installed ? "✓ jau turima" : `reikės atsisiųsti ~${m.download_mb} MB`}` + (m.fits_ram ? "" : ` (rekomenduojama ${m.min_ram_gb}+ GB RAM)`);
+    const o = document.createElement("option"); o.value = m.name;
+    o.textContent = `${m.name} · ${m.installed ? "jau turimas" : `~${m.download_mb} MB`}` + (m.fits_ram ? "" : ` · rekomenduojama ${m.min_ram_gb}+ GB RAM`);
     sel.appendChild(o);
   }
   sel.value = sys.recommended;
   $("syscheck").hidden = false;
-  $("sys-line").textContent = `${sys.ram_gb} GB RAM · ${sys.cpu_threads} gijos` + (sys.gpu ? ` · ${sys.gpu}` : "") + ` · laisva vieta ${sys.disk_free_gb} GB`;
+  $("sys-line").textContent = `${sys.ram_gb} GB RAM · ${sys.cpu_threads} gijos` + (sys.gpu ? ` · ${sys.gpu}` : "");
   const rec = sys.models.find(m => m.name === sys.recommended);
-  $("sys-msg").textContent = sys.recommended_installed
-    ? `Radau jau turimą modelį „${sys.recommended}“ (${rec.source}). Naudosiu jį, nieko atsisiųsti nereikia.`
-    : `Turimo tinkamo modelio nerasta. Pirmą kartą atsisiųsiu „${sys.recommended}“ (~${rec.download_mb} MB)` +
-      (sys.disk_free_gb * 1024 < rec.download_mb * 2 ? " – Dėmesio: laisvos vietos gali nepakakti." : ".");
-  if (sys.other_engines.length) {
-    const o = sys.other_engines[0];
-    $("sys-other").textContent = `Rastas kito įrankio modelis (${o.format}): ${o.path.split(/[\\/]/).pop()}. Lite naudoja kitą modelių formatą, todėl jo nenaudos.`;
-  }
+  $("sys-msg").textContent = sys.recommended_installed ? `Modelis „${sys.recommended}“ jau turimas.` : `Pirmą kartą atsisiųs „${sys.recommended}“ (~${rec.download_mb} MB).`;
   setInterval(refresh, 1000); refresh(); checkUpdate();
   if (params.get("selftest") === "mic") selfTestMic();
 }
 
-/* ——— įkėlimas ir diktavimas ——— */
 const checked = id => [...document.querySelectorAll(`#${id} input:checked`)].map(i => i.value).join(",");
+const radio = name => document.querySelector(`input[name=${name}]:checked`).value;
 function options() {
-  const o = {model: $("model").value, language: $("language").value, task: $("task").value, speakers: $("speakers").value,
-    style: $("style").value, outputs: checked("outputs"), targets: checked("targets")};
+  const o = {model: $("model").value, language: $("language").value, task: radio("task"), speakers: $("speakers").value,
+    style: radio("style"), outputs: checked("outputs"), targets: checked("targets")};
   if ($("prompt").value.trim()) o.prompt = $("prompt").value.trim();
   return o;
 }
 function upload(blob, name) {
   const q = new URLSearchParams({name, ...options()});
   return fetch("/api/upload?" + q, {method: "PUT", headers: hdr, body: blob})
-    .then(r => r.json()).then(j => { if (j.error) alert(j.error); refresh(); return j; });
+    .then(r => r.json()).then(j => { if (j.error) toast(j.error, true); refresh(); return j; });
 }
 async function pickFiles() {
   const r = await fetch("/api/pick", {method: "POST", headers: hdr});
-  if (r.status === 501) { input.click(); return; }
+  if (r.status === 501) { $("file").click(); return; }
   const picked = (await r.json()).paths || [];
   if (!picked.length) return;
   const j = await (await fetch("/api/jobs/local", {method: "POST", headers: hdr, body: JSON.stringify({paths: picked.map(p => p.path), options: options()})})).json();
-  if (j.error) alert(j.error);
+  if (j.error) toast(j.error, true);
   refresh();
 }
+$("pick").onclick = pickFiles;
+const drop = $("drop");
+$("file").onchange = () => { [...$("file").files].forEach(f => upload(f, f.name)); $("file").value = ""; };
+["dragenter", "dragover"].forEach(e => document.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add("over"); }));
+document.addEventListener("dragleave", ev => { if (!ev.relatedTarget) drop.classList.remove("over"); });
+document.addEventListener("drop", ev => { ev.preventDefault(); [...ev.dataTransfer.files].forEach(f => upload(f, f.name)); drop.classList.remove("over"); });
 
-let recorder = null, recChunks = [], recTimer = null, recStart = 0, recStream = null;
+let recorder = null, recChunks = [], recTimer = null, recStart = 0;
 const pickMime = () => ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"].find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || "";
 function startRecording(stream) {
   const mime = pickMime();
   recorder = new MediaRecorder(stream, mime ? {mimeType: mime} : undefined);
-  recChunks = []; recStream = stream; recStart = Date.now();
+  recChunks = []; recStart = Date.now();
   recorder.ondataavailable = e => { if (e.data.size) recChunks.push(e.data); };
   recorder.onstop = () => {
     clearInterval(recTimer); stream.getTracks().forEach(t => t.stop());
@@ -162,128 +302,150 @@ function startRecording(stream) {
   };
   recorder.start(1000);
   $("mic").classList.add("rec"); $("mic-title").textContent = "Sustabdyti";
-  recTimer = setInterval(() => { $("mic-hint").textContent = hms((Date.now() - recStart) / 1000) + " · spustelėk, kad baigtum"; }, 250);
+  recTimer = setInterval(() => { $("mic-hint").textContent = hms((Date.now() - recStart) / 1000); }, 250);
 }
 $("mic").onclick = async () => {
   if (recorder) { recorder.stop(); return; }
-  if (!navigator.mediaDevices || !window.MediaRecorder) { alert("Ši naršyklė neleidžia įrašyti iš mikrofono."); return; }
+  if (!navigator.mediaDevices || !window.MediaRecorder) { toast("Šis langas neleidžia naudoti mikrofono. Atidaryk programą naršyklėje.", true); return; }
   try { startRecording(await navigator.mediaDevices.getUserMedia({audio: true})); }
-  catch (e) { alert("Nepavyko pasiekti mikrofono. Leisk naršyklei jį naudoti (adreso juostoje) ir bandyk dar kartą."); }
+  catch (e) { toast("Nepavyko pasiekti mikrofono. Leisk jį naudoti arba atidaryk programą naršyklėje.", true); }
 };
 
-/* ——— darbų sąrašas: elementai atnaujinami vietoje, kad neprarastume išskleistos peržiūros ——— */
-const cards = new Map(), expanded = new Set(), transcripts = new Map();
+const cards = new Map(), tabs = new Map(), transcripts = new Map();
 async function refresh() {
   let jobs; try { jobs = await (await fetch("/api/jobs", {headers: hdr})).json(); } catch (e) { return; }
   const root = $("jobs"), ids = new Set(jobs.map(j => j.id));
   for (const [id, el] of cards) if (!ids.has(id)) { el.remove(); cards.delete(id); }
   jobs.slice().reverse().forEach((j, i) => {
     let el = cards.get(j.id);
-    if (!el) { el = document.createElement("div"); el.className = "card"; el.dataset.id = j.id; cards.set(j.id, el); }
+    if (!el) { el = document.createElement("div"); el.className = "job"; cards.set(j.id, el); }
     if (root.children[i] !== el) root.insertBefore(el, root.children[i] || null);
     paint(el, j);
   });
 }
+const ICON = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></svg>`;
+const kind = j => j.task === "translate" ? "vertimas į anglų" : "transkripcija";
+function head(j, right) {
+  return `<div class="job-head"><div class="file-ico">${ICON}</div><div class="grow"><div class="job-name">${esc(j.name)}</div>
+    <div class="meta"><span>${kind(j)}</span>${j.language ? `<span class="pill">${esc(j.language)}</span>` : ""}${j.state === "done" ? `<span>${j.cues} eilučių</span>` : ""}${(j.translations || []).map(l => `<span class="pill">${esc(l)}</span>`).join("")}</div></div>${right}</div>`;
+}
 function paint(el, j) {
   const done = j.state === "done", live = j.state === "running" || j.state === "waiting";
-  const sig = [j.state, j.stage, j.error, j.embed.state, j.embed.error, j.cues, expanded.has(j.id), (j.warnings || []).length, (j.speakers || []).map(x => x.name).join(","), (j.saved || []).join(","), (j.translations || []).join(",")].join("|");
-  if (!done) { // eiga: atnaujinam tik juostą ir tekstą
+  const tab = tabs.get(j.id) || "edit";
+  const sig = [j.state, j.stage, j.error, j.embed.state, j.embed.error, j.cues, tab, (j.warnings || []).length, (j.speakers || []).map(x => x.name).join(","), (j.saved || []).join(","), (j.translations || []).join(",")].join("|");
+  if (!done) {
     if (el.dataset.mode !== "live" || el.dataset.sig !== sig) {
       el.dataset.mode = "live"; el.dataset.sig = sig;
-      el.innerHTML = `<h3><span>${esc(j.name)}</span><span class="tag">${j.task === "translate" ? "vertimas į anglų" : "transkripcija"}</span></h3>
-        <div class="bar"><i></i></div><div class="meta" data-stage></div>
-        ${j.error ? `<div class="err">${esc(j.error)}</div>` : ""}
-        <div class="actions">${live ? `<button data-act="cancel">Nutraukti</button>` : `<button data-act="remove">Pašalinti</button>`}</div>`;
+      el.innerHTML = head(j, live ? `<button class="btn small" data-act="cancel">Nutraukti</button>` : `<button class="btn small" data-act="remove">Pašalinti</button>`) +
+        (live ? `<div class="bar"><i></i></div><div class="stage"><span data-stage></span><span data-pct></span></div>` : "") + (j.error ? `<div class="err">${esc(j.error)}</div>` : "");
       bind(el, j);
     }
-    el.querySelector(".bar i").style.width = Math.round(j.progress * 100) + "%";
-    el.querySelector("[data-stage]").textContent = j.stage;
+    const bar = el.querySelector(".bar i"); if (bar) bar.style.width = Math.round(j.progress * 100) + "%";
+    const st = el.querySelector("[data-stage]"); if (st) { st.textContent = j.stage; el.querySelector("[data-pct]").textContent = Math.round(j.progress * 100) + "%"; }
     return;
   }
   if (el.dataset.sig === sig && el.dataset.mode === "done") return;
   el.dataset.mode = "done"; el.dataset.sig = sig;
-  const dl = (f, label, primary, lang) => `<a class="btn ${primary ? "primary" : ""}" href="/api/jobs/${j.id}/${f}?${lang ? `lang=${lang}&` : ""}t=${T}">${label}</a>`;
-  const embedState = j.embed.state;
-  el.innerHTML = `<h3><span>${esc(j.name)}</span><span class="tag">${j.task === "translate" ? "vertimas į anglų" : "transkripcija"}${j.language ? " · " + esc(j.language) : ""} · ${j.cues} segm.</span></h3>
-    ${(j.warnings || []).map(w => `<div class="warn">⚠ ${esc(w)}</div>`).join("")}
-    ${(j.speakers || []).length ? `<div class="group">Kalbėtojai (įrašyk vardus ir išsaugok, jie atsiras visuose failuose)</div>
-      <div class="actions">${j.speakers.map(x => `<input type="text" class="spk" data-id="${x.id}" value="${esc(x.name)}" style="width:150px;margin:8px 8px 0 0;font:inherit;padding:6px 9px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--fg)">`).join("")}<button data-act="names">Išsaugoti vardus</button></div>` : ""}
-    ${(j.saved || []).length ? `<div class="saved">✓ Įrašyta: ${j.saved.map(n => `<code>${esc(n)}</code>`).join(" ")} <button data-act="reveal" class="primary" style="margin:0 0 0 6px">Rodyti aplanke</button></div>` : ""}
-    <div class="actions"><button data-act="copy" class="primary">Kopijuoti tekstą</button><button data-act="view">${expanded.has(j.id) ? "Slėpti transkriptą" : "Rodyti transkriptą"}</button><span class="gap"></span><button data-act="remove">Pašalinti</button></div>
-    <div class="group">Atsisiųsti</div>
-    <div class="actions">${dl("txt", "Tekstas .txt")}${dl("srt", "Subtitrai .srt")}${dl("vtt", ".vtt")}${dl("ts", "Su laikais")}${dl("json", "JSON (žodžių laikai)")}</div>
-    ${(j.translations || []).length ? `<div class="group">Vertimai</div><div class="actions">${j.translations.map(l => `<span class="tag" style="margin:8px 4px 0 0">${esc(l)}</span>${dl("srt", ".srt", false, l)}${dl("vtt", ".vtt", false, l)}${dl("txt", ".txt", false, l)}`).join("")}</div>` : ""}
-    ${j.has_video ? `<div class="group">Video</div><div class="actions">
-        <button data-act="soft" ${embedState === "running" ? "disabled" : ""}>Subtitrai kaip takelis</button>
-        <button data-act="burn" ${embedState === "running" ? "disabled" : ""}>Subtitrai įdegti į vaizdą</button>
-        ${embedState === "running" ? `<span class="meta">Kuriama… (priklauso nuo video ilgio)</span>` : ""}
-        ${embedState === "done" ? dl("video", "Atsisiųsti video su subtitrais", true) : ""}
-        ${embedState === "failed" ? `<span class="err">${esc(j.embed.error || "nepavyko")}</span>` : ""}</div>` : ""}
-    ${expanded.has(j.id) ? `<input class="find" type="text" placeholder="Ieškoti transkripte…" data-find><div class="view" data-view>Kraunama…</div>` : ""}`;
+  const dl = (f, label, lang) => `<a class="btn" href="/api/jobs/${j.id}/${f}?${lang ? `lang=${lang}&` : ""}t=${T}">${label}</a>`;
+  const tabsList = [["edit", "Redaktorius"], ["text", "Tekstas"], ["export", "Eksportas"], ...(j.has_video ? [["video", "Video"]] : [])];
+  el.innerHTML = head(j, `<button class="btn small danger" data-act="remove" title="Pašalinti iš sąrašo (failai diske lieka)">Pašalinti</button>`) +
+    (j.warnings || []).map(w => `<div class="warn">⚠ ${esc(w)}</div>`).join("") +
+    ((j.saved || []).length ? `<div class="saved"><span class="ok">✓ Įrašyta</span>${j.saved.map(n => `<code>${esc(n)}</code>`).join("")}<button class="btn small" data-act="reveal">Rodyti aplanke</button></div>` : "") +
+    `<div class="tabs" role="tablist">${tabsList.map(([k, n]) => `<button class="tab" role="tab" data-tab="${k}" aria-selected="${tab === k}">${n}</button>`).join("")}</div><div class="pane" data-pane></div>`;
   bind(el, j);
-  if (expanded.has(j.id)) showTranscript(el, j);
+  const pane = el.querySelector("[data-pane]");
+  if (tab === "export") {
+    pane.innerHTML = `<div class="sub-h">Originalas</div><div class="dl">${dl("srt", "Subtitrai .srt")}${dl("vtt", "Subtitrai .vtt")}${dl("txt", "Tekstas .txt")}${dl("ts", "Tekstas su laikais")}${dl("json", "JSON (žodžių laikai)")}</div>` +
+      (j.translations || []).map(l => `<div class="sub-h">Vertimas: ${esc(l)} (orientacinis)</div><div class="dl">${dl("srt", ".srt", l)}${dl("vtt", ".vtt", l)}${dl("txt", ".txt", l)}</div>`).join("");
+  } else if (tab === "video") {
+    const s = j.embed.state;
+    pane.innerHTML = `<div class="sub-h">Subtitrai į video</div><div class="dl"><button class="btn" data-act="soft" ${s === "running" ? "disabled" : ""}>Kaip atskiras takelis</button><button class="btn" data-act="burn" ${s === "running" ? "disabled" : ""}>Įdegti į vaizdą</button></div>
+      <p class="meta" style="margin-top:12px">${s === "running" ? "Kuriama… (priklauso nuo video ilgio)" : s === "failed" ? `<span style="color:var(--red)">${esc(j.embed.error || "nepavyko")}</span>` : "Takelį galima įjungti ir išjungti grotuve. Įdegti subtitrai matomi visur, bet jų nebegalima pašalinti."}</p>
+      ${s === "done" ? `<div class="dl" style="margin-top:8px">${dl("video", "Atsisiųsti video su subtitrais")}</div>` : ""}`;
+    bind(pane, j);
+  } else if (tab === "text") {
+    pane.innerHTML = `<div class="bar-tools"><button class="btn primary small" data-act="copy">Kopijuoti tekstą</button></div><pre class="txt" data-txt>Kraunama…</pre>`;
+    bind(pane, j);
+    fetch(`/api/jobs/${j.id}/txt`, {headers: hdr}).then(r => r.text()).then(t => { const p = pane.querySelector("[data-txt]"); if (p) p.textContent = t; });
+  } else {
+    editor(pane, j);
+  }
 }
-async function transcript(j) {
-  if (!transcripts.has(j.id)) transcripts.set(j.id, await (await fetch(`/api/jobs/${j.id}/transcript`, {headers: hdr})).json());
+async function loadTranscript(j, fresh) {
+  if (fresh || !transcripts.has(j.id)) transcripts.set(j.id, await (await fetch(`/api/jobs/${j.id}/transcript`, {headers: hdr})).json());
   return transcripts.get(j.id);
 }
-async function showTranscript(el, j) {
-  const view = el.querySelector("[data-view]"), find = el.querySelector("[data-find]");
-  const data = await transcript(j);
-  const draw = q => { const needle = q.trim().toLowerCase();
-    view.innerHTML = data.cues.map(c => `<div class="line${needle && c.text.toLowerCase().includes(needle) ? " hit" : ""}"><time>${hms(c.start)}</time><span>${c.speaker !== null ? `<b>${esc(c.speaker_name)}:</b> ` : ""}${esc(c.text)}</span></div>`).join("") || "<div class=meta>Kalbos nerasta.</div>"; };
-  draw(""); find.oninput = () => draw(find.value);
+async function editor(pane, j) {
+  const data = await loadTranscript(j);
+  const spk = data.speakers || [];
+  pane.innerHTML = (spk.length ? `<div class="names"><span class="meta">Kalbėtojai:</span>${spk.map(x => `<input type="text" class="spk-in" data-id="${x.id}" value="${esc(x.name)}">`).join("")}<button class="btn small" data-act="names">Išsaugoti vardus</button></div>` : "") +
+    `<div class="bar-tools"><input type="text" placeholder="Ieškoti subtitruose…" data-find><span class="grow"></span><span class="meta" data-dirty></span><button class="btn primary" data-act="savecues" disabled>Išsaugoti pakeitimus</button></div>
+     <div class="cues" data-cues></div><p class="meta" style="margin-top:10px">Taisyk tekstą ar laikus tiesiai čia. Išsaugojus bus perrašyti .srt, .vtt, .txt ir .json failai, kuriuos sukūrė programa. Vertimus reikės sukurti iš naujo.</p>`;
+  bind(pane, j);
+  const box = pane.querySelector("[data-cues]"), save = pane.querySelector("[data-act=savecues]"), dirty = pane.querySelector("[data-dirty]");
+  const rows = data.cues.map((c, i) => {
+    const r = document.createElement("div"); r.className = "cue";
+    r.innerHTML = `<div class="n">${i + 1}</div><div class="t"><input value="${tc(c.start)}" data-s><input value="${tc(c.end)}" data-e></div>
+      <div>${c.speaker !== null ? `<div class="spk">${esc(c.speaker_name)}</div>` : ""}<textarea rows="${Math.max(2, c.raw.split("\n").length)}">${esc(c.raw)}</textarea></div><div class="cps"></div>`;
+    box.appendChild(r);
+    const ta = r.querySelector("textarea"), si = r.querySelector("[data-s]"), ei = r.querySelector("[data-e]"), cps = r.querySelector(".cps");
+    const calc = () => { const s = untc(si.value), e = untc(ei.value), n = ta.value.replace(/\s+/g, " ").length;
+      const rate = s !== null && e !== null && e > s ? n / (e - s) : 0; cps.textContent = rate ? rate.toFixed(0) + " s/s" : "?"; cps.classList.toggle("bad", rate > 21 || s === null || e === null || e <= s); cps.title = "simboliai per sekundę (iki ~21 skaitoma patogiai)"; };
+    const touch = () => { calc(); save.disabled = false; dirty.textContent = "yra neišsaugotų pakeitimų"; };
+    [ta, si, ei].forEach(x => x.oninput = touch); calc();
+    return {r, ta, si, ei};
+  });
+  pane.querySelector("[data-find]").oninput = e => { const q = e.target.value.trim().toLowerCase(); rows.forEach(x => x.r.classList.toggle("hit", !!q && x.ta.value.toLowerCase().includes(q))); const first = rows.find(x => x.r.classList.contains("hit")); if (first) first.r.scrollIntoView({block: "nearest"}); };
+  save.onclick = async () => {
+    const cues = rows.map(x => ({start: untc(x.si.value), end: untc(x.ei.value), text: x.ta.value}));
+    if (cues.some(c => c.start === null || c.end === null)) { toast("Laikas turi būti formato 00:00:01,200", true); return; }
+    const out = await (await fetch(`/api/jobs/${j.id}/cues`, {method: "POST", headers: hdr, body: JSON.stringify({cues})})).json();
+    if (out.error) { toast(out.error, true); return; }
+    toast(out.rewritten ? `Išsaugota. Perrašyta failų: ${out.rewritten}` : "Išsaugota");
+    save.disabled = true; dirty.textContent = ""; await loadTranscript(j, true); refresh();
+  };
 }
 function bind(el, j) {
-  el.querySelectorAll("[data-act]").forEach(b => b.onclick = async () => {
+  if (el.querySelector(".tab")) el.querySelectorAll(".tab").forEach(b => b.onclick = () => { tabs.set(j.id, b.dataset.tab); el.dataset.sig = ""; refresh(); });
+  el.querySelectorAll("[data-act]").forEach(b => { if (b.dataset.act === "savecues") return; b.onclick = async () => {
     const act = b.dataset.act;
-    if (act === "cancel" || act === "remove") { expanded.delete(j.id); transcripts.delete(j.id); await fetch("/api/jobs/" + j.id, {method: "DELETE", headers: hdr}); }
-    if (act === "view") { expanded.has(j.id) ? expanded.delete(j.id) : expanded.add(j.id); el.dataset.sig = ""; }
+    if (act === "cancel" || act === "remove") { tabs.delete(j.id); transcripts.delete(j.id); await fetch("/api/jobs/" + j.id, {method: "DELETE", headers: hdr}); }
     if (act === "copy") { const t = await (await fetch(`/api/jobs/${j.id}/txt`, {headers: hdr})).text();
-      try { await navigator.clipboard.writeText(t); b.textContent = "Nukopijuota"; setTimeout(() => b.textContent = "Kopijuoti tekstą", 1500); } catch (e) { alert("Nepavyko nukopijuoti – naudok „Tekstas .txt“."); } }
+      try { await navigator.clipboard.writeText(t); toast("Tekstas nukopijuotas"); } catch (e) { toast("Nepavyko nukopijuoti. Naudok .txt atsisiuntimą.", true); } }
     if (act === "names") {
-      const names = {}; el.querySelectorAll(".spk").forEach(i => { if (i.value.trim()) names[i.dataset.id] = i.value.trim(); });
-      await fetch(`/api/jobs/${j.id}/speakers`, {method: "POST", headers: hdr, body: JSON.stringify({names})}); transcripts.delete(j.id);
+      const names = {}; document.querySelectorAll(".spk-in").forEach(i => { if (i.value.trim()) names[i.dataset.id] = i.value.trim(); });
+      await fetch(`/api/jobs/${j.id}/speakers`, {method: "POST", headers: hdr, body: JSON.stringify({names})}); transcripts.delete(j.id); cards.get(j.id).dataset.sig = ""; toast("Vardai išsaugoti");
     }
     if (act === "reveal") { await fetch(`/api/jobs/${j.id}/reveal`, {method: "POST", headers: hdr}); return; }
-    if (act === "soft" || act === "burn") { const r = await fetch(`/api/jobs/${j.id}/embed?mode=${act}`, {method: "POST", headers: hdr}); const x = await r.json(); if (x.error) alert(x.error); }
+    if (act === "soft" || act === "burn") { const x = await (await fetch(`/api/jobs/${j.id}/embed?mode=${act}`, {method: "POST", headers: hdr})).json(); if (x.error) toast(x.error, true); }
     refresh();
-  });
+  }; });
 }
-
-const drop = $("drop"), input = $("file");
-drop.onclick = pickFiles;
-drop.onkeydown = e => { if (e.key === "Enter" || e.key === " ") pickFiles(); };
-input.onchange = () => { [...input.files].forEach(f => upload(f, f.name)); input.value = ""; };
-["dragenter", "dragover"].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add("over"); }));
-["dragleave", "drop"].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove("over"); }));
-drop.addEventListener("drop", ev => [...ev.dataTransfer.files].forEach(f => upload(f, f.name)));
 
 async function checkUpdate() {
   try {
     const u = await (await fetch("/api/update", {headers: hdr})).json();
     if (!u.available) { setTimeout(checkUpdate, 15000); return; }
-    $("update").hidden = false; $("update-text").textContent = `Yra nauja versija ${u.version}` + (u.title ? ` (${u.title})` : "");
+    $("update").hidden = false; $("update-text").textContent = `Nauja versija ${u.version}`;
     $("update-btn").onclick = async () => {
-      $("update-btn").disabled = true; $("update-msg").textContent = " Atsisiunčiama ir tikrinamas parašas...";
+      $("update-btn").disabled = true; $("update-msg").textContent = "Atsisiunčiama ir tikrinamas parašas…";
       const j = await (await fetch("/api/update/install", {method: "POST", headers: hdr})).json();
-      $("update-msg").textContent = j.ok ? ` Paleistas diegimo failas: ${j.file}. Uždaryk šią programą ir užbaik diegimą.` : ` Nepavyko: ${j.error}`;
+      $("update-msg").textContent = j.ok ? `Paleistas diegimo failas ${j.file}. Uždaryk programą ir užbaik diegimą.` : `Nepavyko: ${j.error}`;
       $("update-btn").disabled = false;
     };
   } catch (e) {}
 }
 
-/* ——— gyvi subtitrai: mikrofonas -> 16 kHz PCM -> serveris; langas OBS/vMix naršyklės šaltiniui ——— */
 let live = null;
 async function startLive() {
-  if (!navigator.mediaDevices) { alert("Ši naršyklė neleidžia naudoti mikrofono."); return; }
+  if (!navigator.mediaDevices) { toast("Ši naršyklė neleidžia naudoti mikrofono.", true); return; }
   let stream;
   try { stream = await navigator.mediaDevices.getUserMedia({audio: {echoCancellation: false, noiseSuppression: false, channelCount: 1}}); }
-  catch (e) { alert("Nepavyko pasiekti mikrofono. Leisk naršyklei jį naudoti ir bandyk dar kartą."); return; }
+  catch (e) { toast("Nepavyko pasiekti mikrofono. Leisk jį naudoti arba atidaryk programą naršyklėje.", true); return; }
   const o = options(); delete o.outputs; delete o.task;
   $("live-title").textContent = "Paleidžiama…";
-  const r = await fetch("/api/live?" + new URLSearchParams(o), {method: "POST", headers: hdr}), j = await r.json();
-  if (j.error) { alert(j.error); stream.getTracks().forEach(t => t.stop()); $("live-title").textContent = "Gyvi subtitrai"; return; }
+  const j = await (await fetch("/api/live?" + new URLSearchParams(o), {method: "POST", headers: hdr})).json();
+  if (j.error) { toast(j.error, true); stream.getTracks().forEach(t => t.stop()); $("live-title").textContent = "Pradėti"; return; }
   const ctx = new AudioContext(); await ctx.audioWorklet.addModule("/live-worklet.js?t=" + T);
   const node = new AudioWorkletNode(ctx, "capture"); ctx.createMediaStreamSource(stream).connect(node);
   const ratio = ctx.sampleRate / 16000;
@@ -293,30 +455,29 @@ async function startLive() {
     fetch(`/api/live/${j.id}/audio`, {method: "PUT", headers: hdr, body: pcm.buffer}).catch(() => {});
   };
   live = {id: j.id, ctx, stream, targets: j.targets, timer: setInterval(pollLive, 500)};
-  $("live").hidden = false; $("live-btn").classList.add("rec"); $("live-title").textContent = "Sustabdyti"; $("live-dl").innerHTML = "";
+  $("live-title").textContent = "Sustabdyti"; $("live-dl").innerHTML = "";
   const base = `${location.origin}/overlay?t=${T}&id=${j.id}`;
-  $("live-links").innerHTML = `OBS / vMix naršyklės šaltinis (permatomas fonas): <code>${esc(base)}</code>` + j.targets.map(l => `<br>${esc(l)}: <code>${esc(base + "&lang=" + l)}</code>`).join("");
+  $("live-links").innerHTML = `OBS / vMix naršyklės šaltinis (permatomas fonas):<code>${esc(base)}</code>` + j.targets.map(l => `${esc(l)}:<code>${esc(base + "&lang=" + l)}</code>`).join("");
 }
 async function pollLive() {
   if (!live) return;
   const s = await (await fetch(`/api/live/${live.id}`, {headers: hdr})).json();
-  $("live-meta").textContent = `${hms(s.total)} · vėlavimas ~${s.latency}s` + (s.running ? "" : " · sustabdyta");
-  $("live-view").innerHTML = s.lines.slice(-8).map(l => `<div>${esc(l.text)}${Object.entries(l.tr || {}).map(([k, v]) => `<div class="meta">${esc(k)}: ${esc(v)}</div>`).join("")}</div>`).join("") + (s.partial ? `<div style="opacity:.6">${esc(s.partial)}</div>` : "");
-  $("live-view").scrollTop = 1e9;
-  if (s.error) { alert("Gyvi subtitrai sustojo: " + s.error); await stopLive(true); }
+  $("live-meta").textContent = `${hms(s.total)} · vėlavimas ~${s.latency} s` + (s.running ? "" : " · sustabdyta");
+  const last = s.lines.slice(-3);
+  $("live-view").innerHTML = last.map(l => `<div>${esc(l.text)}${Object.entries(l.tr || {}).map(([k, v]) => `<div class="tr">${esc(k)}: ${esc(v)}</div>`).join("")}</div>`).join("") + (s.partial ? `<div class="p">${esc(s.partial)}</div>` : "") || `<span class="p">Kalbėk…</span>`;
+  if (s.error) { toast("Gyvi subtitrai sustojo: " + s.error, true); await stopLive(true); }
 }
 async function stopLive(already) {
   if (!live) return;
   const cur = live; live = null; clearInterval(cur.timer);
   cur.stream.getTracks().forEach(t => t.stop()); cur.ctx.close();
   if (!already) await fetch(`/api/live/${cur.id}/stop`, {method: "POST", headers: hdr});
-  $("live-btn").classList.remove("rec"); $("live-title").textContent = "Gyvi subtitrai";
+  $("live-title").textContent = "Pradėti";
   const d = (f, l, lang) => `<a class="btn" href="/api/live/${cur.id}/${f}?${lang ? "lang=" + lang + "&" : ""}t=${T}">${l}</a>`;
   $("live-dl").innerHTML = ["", ...cur.targets].map(l => d("srt", ".srt" + (l ? " " + l : ""), l) + d("vtt", ".vtt" + (l ? " " + l : ""), l) + d("txt", ".txt" + (l ? " " + l : ""), l)).join("");
 }
 $("live-btn").onclick = () => live ? stopLive() : startLive();
 
-/* ——— savitikra (CI ir derinimui): diktavimas su sintetiniu srautu, be mikrofono leidimo ——— */
 async function selfTestMic() {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)(), dest = ctx.createMediaStreamDestination(), osc = ctx.createOscillator();

@@ -1,7 +1,7 @@
 {
   "build": "1",
-  "downloadURL": "https://srt.1millionads.net/lite/srtforge_lite-0.6.3.tar.gz",
-  "sha256": "a595710dcd4304909294f48efef433cb2947eaa4ae1d13d0030dea615c629388",
-  "signature": "A4f4O6W79nOQlIbIM6CUvNe/Yrj6aSTZIkkzynAcs1uU7q5GEDcpffxWTTwx5Rxb/Smu5tH0M/BA+zhQbGB1Cw==",
-  "version": "0.6.3"
+  "downloadURL": "https://srt.1millionads.net/lite/srtforge_lite-0.7.0.tar.gz",
+  "sha256": "da19e268b9da33dc5336d845d1961ae74694b586a6f6f883fe5d1f0eb99b4ea3",
+  "signature": "yX6bdswLsIfd6ZaNdiqIT0arq5cYeMJ7fEmpL/JSejVloatI4Zo4uF+gckXTBPGm9UP7eaOKdD3lJdMvVDaADg==",
+  "version": "0.7.0"
 }

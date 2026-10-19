@@ -273,6 +273,37 @@ class ServerTests(unittest.TestCase):
         self.assertIn("[en] Labas", self.call("GET", f"/api/live/{live}/srt?lang=en")[1].decode())
         self.assertFalse(self.app.busy())
 
+    def test_cue_edits_rewrite_own_files_and_validate(self):
+        import tempfile
+        d = tempfile.mkdtemp()
+        src = os.path.join(d, "redaguoti.wav")
+        open(src, "wb").write(b"garsas")
+        self.app.picker = lambda: [src]
+        picked = json.loads(self.call("POST", "/api/pick", b"")[1])["paths"]
+        body = json.dumps({"paths": [picked[0]["path"]], "options": {"model": "base", "outputs": ["srt", "txt"], "targets": ["en"]}}).encode()
+        jid = json.loads(self.call("POST", "/api/jobs/local", body)[1])["jobs"][0]["id"]
+        job = self.wait(jid)
+        cues = json.loads(self.call("GET", f"/api/jobs/{jid}/transcript")[1])["cues"]
+        self.assertIn("raw", cues[0])
+        edits = [{"start": c["start"], "end": c["end"], "text": c["raw"]} for c in cues]
+        edits[0]["text"] = "Pataisytas tekstas"
+        status, resp, _ = self.call("POST", f"/api/jobs/{jid}/cues", json.dumps({"cues": edits}).encode())
+        self.assertEqual(status, 200, resp)
+        self.assertIn("Pataisytas tekstas", open(os.path.join(d, "redaguoti.srt"), encoding="utf-8").read())
+        self.assertIn("Pataisytas tekstas", open(os.path.join(d, "redaguoti.txt"), encoding="utf-8").read())
+        self.assertIn("Labas", open(os.path.join(d, "redaguoti.en.srt"), encoding="utf-8").read().replace("[en] ", ""))   # vertimo failų neliečiame
+        self.assertEqual(self.call("POST", f"/api/jobs/{jid}/cues", json.dumps({"cues": edits[:1]}).encode())[0], 400)
+        edits[0]["end"] = edits[0]["start"] - 1
+        self.assertEqual(self.call("POST", f"/api/jobs/{jid}/cues", json.dumps({"cues": edits}).encode())[0], 400)
+        self.assertEqual(self.call("POST", f"/api/jobs/{jid}/cues", b"nesamone")[0], 400)
+
+    def test_fonts_are_served_without_token_but_only_known_files(self):
+        status, body, headers = self.call("GET", "/fonts/bricolage-latin.woff2", token=None)
+        self.assertEqual((status, headers["Content-Type"]), (200, "font/woff2"))
+        self.assertEqual(self.call("GET", "/fonts/../server.py", token=None)[0], 404)
+        self.assertEqual(self.call("GET", "/fonts/nera.woff2", token=None)[0], 404)
+        self.assertEqual(self.call("GET", "/api/jobs", token=None)[0], 403)
+
     def test_languages_endpoint(self):
         doc = json.loads(self.call("GET", "/api/languages")[1])
         self.assertIn("lv", doc["targets"])

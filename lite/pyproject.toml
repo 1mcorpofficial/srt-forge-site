@@ -19,4 +19,4 @@ packages = ["srtforge_lite"]
 version = {attr = "srtforge_lite.__version__"}
 
 [tool.setuptools.package-data]
-srtforge_lite = ["ui.html", "overlay.html", "worklet.js", "update_public_key.txt"]
+srtforge_lite = ["ui.html", "overlay.html", "worklet.js", "update_public_key.txt", "fonts/*.woff2"]
