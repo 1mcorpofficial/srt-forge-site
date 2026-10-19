@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="lt"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Privatumas — SRT Forge</title><meta name="robots" content="noindex"><style>
+@font-face{font-family:"Bricolage";font-weight:200 800;font-display:swap;src:url(/fonts/bricolage-latin-ext.woff2) format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:"Bricolage";font-weight:200 800;font-display:swap;src:url(/fonts/bricolage-latin.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+:root{--paper:#e9eef2;--ink:#0a1b2e;--mute:#566879;--line:#c9d3dc;--cue:#ffd23f}
+@media (prefers-color-scheme:dark){:root{--paper:#08121d;--ink:#e9eef2;--mute:#8fa1b2;--line:#1d2e3f}}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.65 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:720px;margin:0 auto;padding:56px 24px 96px}a{color:inherit}
+.back{font:700 15px "Bricolage",Arial,sans-serif;text-decoration:none;border-bottom:3px solid var(--cue)}
+h1{font:800 clamp(38px,8vw,76px)/.98 "Bricolage",Arial,sans-serif;letter-spacing:-.04em;margin:40px 0 20px}
+h2{font:800 24px/1.2 "Bricolage",Arial,sans-serif;letter-spacing:-.02em;margin:40px 0 8px}
+p,li{color:var(--mute);max-width:62ch}li{margin:6px 0}strong{color:var(--ink)}code{font-size:.92em;background:rgba(127,127,127,.15);padding:1px 6px;border-radius:5px}
+:focus-visible{outline:3px solid #e8453c;outline-offset:3px}
+</style></head><body><main>
+<a class="back" href="/">SRT Forge</a>
+<h1>Privatumas</h1>
+<p><strong>Tavo įrašai lieka tavo kompiuteryje.</strong> SRT Forge Lite atpažįsta kalbą vietoje. Garso ir video failai niekur nesiunčiami, o programa klauso tik vietinio adreso <code>127.0.0.1</code> su vienkartiniu raktu.</p>
+<h2>Ką programa vis dėlto atsisiunčia</h2>
+<ul>
+<li><strong>Kalbos modelį</strong> iš HuggingFace, tik jei jo dar neturi. Atsisiuntimo metu HuggingFace mato tavo IP adresą.</li>
+<li><strong>Atnaujinimų informaciją</strong> iš <code>srt.1millionads.net</code>, kai paleidi programą. Serveris mato IP adresą ir programos versiją.</li>
+</ul>
+<h2>Ką mato šis serveris</h2>
+<p>Svetainę ir atsisiuntimus aptarnauja nginx, kuris, kaip įprasta, užrašo užklausas (IP, laiką, nuorodą, naršyklės pavadinimą). Tai naudojama klaidoms ir piktnaudžiavimui nustatyti. Jokių sekimo skriptų, slapukų ar reklamų svetainėje nėra.</p>
+<h2>Saugūs atnaujinimai</h2>
+<p>Kiekvienas diegimo failas pasirašytas Ed25519 raktu, o programa patikrina parašą ir sha256 prieš paleisdama. Jei parašas neteisingas, diegimas nutraukiamas.</p>
+</main></body></html>

@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="lt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SRT Forge — kalba į tekstą, visi įrankiai vienoje vietoje</title>
+<meta name="description" content="Kalbos į tekstą įrankių rinkinys: transkripcija, subtitrai, vertimas, diktavimas. Windows, macOS ir Linux. Viskas tavo kompiuteryje, be paskyros ir be debesies.">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#08090b">
+<link rel="preload" href="fonts/bricolage-latin-ext.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/instrument-serif-latin-ext-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+@font-face{font-family:"Bricolage";font-weight:200 800;font-display:swap;src:url(fonts/bricolage-latin-ext.woff2) format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:"Bricolage";font-weight:200 800;font-display:swap;src:url(fonts/bricolage-latin.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"Serif";font-style:normal;font-weight:400;font-display:swap;src:url(fonts/instrument-serif-latin-ext-400-normal.woff2) format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:"Serif";font-style:normal;font-weight:400;font-display:swap;src:url(fonts/instrument-serif-latin-400-normal.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"Serif";font-style:italic;font-weight:400;font-display:swap;src:url(fonts/instrument-serif-latin-ext-400-italic.woff2) format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:"Serif";font-style:italic;font-weight:400;font-display:swap;src:url(fonts/instrument-serif-latin-400-italic.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+
+:root{
+  --screen:#08090b; --white:#f3f0e8; --slate:#8a8d94; --dim:#3a3c41; --line:#1d1f24;
+  --yellow:#ffd83a; --yellow-ink:#16130a; --red:#ff4b2b;
+  --display:"Bricolage","Helvetica Neue",Arial,sans-serif; --serif:"Serif",Georgia,"Times New Roman",serif;
+  --top:56px; --bottom:54px; --gutter:clamp(20px,5vw,72px);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;background:var(--screen)}
+body{margin:0;background:var(--screen);color:var(--white);font:21px/1.5 var(--serif);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+a{color:inherit}
+:focus-visible{outline:3px solid var(--red);outline-offset:3px}
+.sr{position:absolute;left:-9999px}
+
+/* —— kino juostos: viršus ir apačia —— */
+.bar{position:fixed;left:0;right:0;z-index:20;background:var(--screen);display:flex;align-items:center;justify-content:space-between;padding:0 var(--gutter);font:700 14px var(--display);letter-spacing:.01em}
+.bar-top{top:0;height:var(--top);border-bottom:1px solid var(--line)}
+.bar-bottom{bottom:0;height:var(--bottom);border-top:1px solid var(--line);gap:18px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;font-weight:800;font-size:16px}
+.brand i{width:11px;height:11px;border-radius:50%;background:var(--red);box-shadow:0 0 0 3px rgba(255,75,43,.25)}
+.clock{font-variant-numeric:tabular-nums;color:var(--slate)}
+.get{font:700 14px var(--display);text-decoration:none;background:var(--yellow);color:var(--yellow-ink);padding:9px 16px;border-radius:999px}
+.get:hover{background:var(--white)}
+.scenes{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+.scenes a{white-space:nowrap;text-decoration:none;color:var(--slate);padding:6px 10px;border-radius:999px}
+.scenes a:hover{color:var(--white)}
+.scenes a[aria-current=true]{color:var(--yellow-ink);background:var(--yellow)}
+.prog{position:absolute;left:0;top:-1px;height:2px;background:var(--red);width:0}
+@media (max-width:640px){.clock{display:none}}
+
+/* —— perforacijos (tik platiems ekranams) —— */
+.perf{position:fixed;top:var(--top);bottom:var(--bottom);width:22px;z-index:5;pointer-events:none;
+  background:repeating-linear-gradient(to bottom,transparent 0 14px,#17191e 14px 30px,transparent 30px 44px) center/8px 44px repeat-y;opacity:.9}
+.perf.l{left:10px}.perf.r{right:10px}
+@media (max-width:1100px){.perf{display:none}}
+
+main{padding-top:var(--top);padding-bottom:var(--bottom)}
+.wrap{padding:0 var(--gutter);max-width:1440px;margin:0 auto}
+section{scroll-margin-top:var(--top)}
+
+/* —— 1. KADRAS —— */
+.hero{min-height:calc(var(--vh,100svh) - var(--top) - var(--bottom));display:flex;flex-direction:column;justify-content:center;padding:clamp(28px,5vh,64px) 0 clamp(24px,4vh,48px)}
+.hero .wrap{width:100%}
+h1{margin:0;font:800 clamp(48px,min(9.6vw,14vh),160px)/.92 var(--display);letter-spacing:-.045em}
+h1 .l1{display:block}
+h1 .l2{display:block;font-size:.5em;letter-spacing:-.035em;color:var(--slate);margin-top:.12em}
+.tabs{display:flex;flex-wrap:wrap;gap:8px;margin-top:clamp(18px,3vh,32px);align-items:center}
+.tabs button{font:700 14px var(--display);color:var(--slate);background:transparent;border:1px solid var(--dim);border-radius:999px;padding:8px 16px;cursor:pointer}
+.tabs button:hover{color:var(--white);border-color:var(--white)}
+.tabs button[aria-selected=true]{background:var(--yellow);color:var(--yellow-ink);border-color:var(--yellow)}
+.soon{font:italic 400 16px var(--serif);color:var(--slate);padding:0 6px}
+.out{position:absolute;left:0;right:0;bottom:0;min-height:72px;font:500 clamp(18px,2vw,26px)/1.35 var(--serif);color:var(--white);display:flex;align-items:flex-end}
+.out .sub{position:static;width:100%}
+.out p{margin:0;max-width:60ch}.out .tw{color:var(--dim);transition:color .15s}.out .tw.on{color:var(--white)}
+.out pre{margin:0;font:600 14px/1.5 var(--display);color:var(--slate);white-space:pre-wrap}.out pre b{color:var(--yellow);font-weight:700}
+.tools{padding:clamp(80px,14vh,170px) 0 0}
+.toolrows{list-style:none;margin:36px 0 0;padding:0}
+.toolrows li{display:grid;grid-template-columns:minmax(180px,.5fr) 1fr auto;gap:8px 28px;align-items:baseline;padding:20px 0;border-top:1px solid var(--line)}
+.toolrows li:last-child{border-bottom:1px solid var(--line)}
+.toolrows b{font:800 clamp(24px,3.2vw,42px)/1.05 var(--display);letter-spacing:-.03em}
+.toolrows span{color:var(--slate);font-size:21px}
+.toolrows em{font:700 13px var(--display);font-style:normal;color:var(--slate);border:1px solid var(--dim);border-radius:999px;padding:4px 12px;white-space:nowrap}
+.toolrows em.on{color:var(--yellow-ink);background:var(--yellow);border-color:var(--yellow)}
+@media (max-width:760px){.toolrows li{grid-template-columns:1fr}}
+.stage{position:relative;margin-top:clamp(22px,4vh,44px);height:clamp(210px,27vh,300px)}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%;cursor:ew-resize;touch-action:none}
+.sub{position:absolute;left:0;right:0;bottom:0;text-align:center;font:700 clamp(18px,2.6vw,34px)/1.25 Arial,"Helvetica Neue",Helvetica,sans-serif;color:var(--yellow);white-space:pre-line;pointer-events:none;
+  text-shadow:0 0 3px #000,0 0 3px #000,2px 2px 0 #000,-2px -2px 0 #000,2px -2px 0 #000,-2px 2px 0 #000;min-height:2.5em;display:flex;align-items:flex-end;justify-content:center}
+.deck{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:20px 56px;align-items:end;margin-top:18px}
+.srt{font:600 14px/1.55 var(--display);font-variant-numeric:tabular-nums;color:var(--slate);white-space:pre;min-height:4.7em}
+.srt b{color:var(--white);font-weight:700}
+.lead{font:italic 400 clamp(22px,2.3vw,30px)/1.3 var(--serif);color:var(--white);max-width:30ch;margin:0}
+.ctas{display:flex;flex-wrap:wrap;gap:12px 18px;align-items:center;margin-top:22px}
+.go{display:inline-block;font:800 20px var(--display);background:var(--yellow);color:var(--yellow-ink);padding:18px 30px;border-radius:999px;text-decoration:none;transition:transform .15s,background .15s}
+.go:hover{background:var(--white);transform:translateY(-2px)}
+.ghost{font:700 15px var(--display);color:var(--slate);text-decoration:none;border-bottom:1px solid var(--dim);padding-bottom:2px}
+.ghost:hover{color:var(--white);border-color:var(--white)}
+.play{font:700 13px var(--display);color:var(--white);background:transparent;border:1px solid var(--dim);border-radius:999px;padding:8px 14px;cursor:pointer}
+.play:hover{border-color:var(--white)}
+@media (max-width:820px){.deck{grid-template-columns:1fr}}
+
+/* —— 2. ATSISIUNTIMAI: geltonas laukas —— */
+.dl{background:var(--yellow);color:var(--yellow-ink);margin-top:clamp(40px,8vh,100px);padding:clamp(56px,10vh,120px) 0 clamp(48px,8vh,96px)}
+.dl h2{font:800 clamp(40px,7.4vw,112px)/.92 var(--display);letter-spacing:-.04em;margin:0 0 14px}
+.dl .intro{font:italic 400 clamp(22px,2.2vw,28px)/1.3 var(--serif);max-width:34ch;margin:0 0 clamp(32px,6vh,64px)}
+.rows{border-top:3px solid var(--yellow-ink)}
+.row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 32px;align-items:center;padding:clamp(18px,3vh,34px) 0;border-bottom:1px solid rgba(22,19,10,.3);position:relative;transition:background .18s,color .18s,padding .18s}
+.row:hover{background:var(--yellow-ink);color:var(--yellow);padding-left:clamp(12px,2vw,28px);padding-right:clamp(12px,2vw,28px);margin:0 calc(-1 * clamp(12px,2vw,28px))}
+.os{font:800 clamp(56px,12.5vw,196px)/.9 var(--display);letter-spacing:-.05em;margin:0;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap}
+.os small{font:italic 400 clamp(18px,1.8vw,24px)/1.2 var(--serif);letter-spacing:0}
+.mine{font:700 12px var(--display);letter-spacing:.02em;background:var(--red);color:#fff;border-radius:999px;padding:5px 11px;transform:translateY(-.9em)}
+.picks{display:flex;gap:12px;flex-wrap:wrap;justify-content:flex-end}
+.pick{display:inline-flex;flex-direction:column;gap:2px;text-decoration:none;font:800 18px var(--display);border:2.5px solid currentColor;border-radius:18px;padding:14px 22px;min-width:150px;transition:background .15s,color .15s}
+.pick span{font:italic 400 15px/1.2 var(--serif);opacity:.8}
+.pick:hover{background:var(--yellow);color:var(--yellow-ink);border-color:var(--yellow)}
+.row:hover .pick:hover{background:var(--yellow);color:var(--yellow-ink)}
+.pick[aria-disabled=true]{opacity:.45;pointer-events:none}
+.meta{grid-column:1/-1;font:600 14px var(--display);opacity:.75}
+@media (max-width:760px){.row{grid-template-columns:1fr}.picks{justify-content:flex-start}}
+.dl-foot{margin-top:28px;display:flex;flex-wrap:wrap;gap:12px 32px;font:italic 400 19px/1.4 var(--serif)}
+.dl-foot a{text-underline-offset:3px}
+details.cmd{margin-top:18px;border-top:1px solid rgba(22,19,10,.3);padding-top:6px}
+details.cmd summary{cursor:pointer;font:700 16px var(--display);padding:12px 0}
+details.cmd p{margin:6px 0;font:italic 400 19px/1.35 var(--serif)}
+details.cmd pre{background:var(--yellow-ink);color:var(--yellow);border-radius:12px;padding:14px 18px;overflow-x:auto;font:600 14px/1.5 ui-monospace,Menlo,Consolas,monospace;margin:8px 0}
+
+/* —— 3. PIRMAS PALEIDIMAS —— */
+.run{padding:clamp(80px,14vh,170px) 0 0}
+.run-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:clamp(32px,6vw,96px);align-items:start}
+@media (max-width:900px){.run-grid{grid-template-columns:1fr}}
+h2.big{font:800 clamp(40px,7vw,104px)/.92 var(--display);letter-spacing:-.04em;margin:0 0 20px}
+.run p.lead2{font:italic 400 clamp(22px,2.2vw,28px)/1.3 var(--serif);color:var(--white);max-width:30ch;margin:0 0 36px}
+.steps{list-style:none;margin:0;padding:0}
+.steps li{display:grid;grid-template-columns:78px 1fr;gap:6px 18px;padding:16px 0;border-top:1px solid var(--line)}
+.steps time{font:800 20px var(--display);font-variant-numeric:tabular-nums;color:var(--red)}
+.steps b{font:800 24px/1.15 var(--display);letter-spacing:-.02em;display:block}
+.steps span{color:var(--slate);font-size:20px}
+.term{position:sticky;top:calc(var(--top) + 28px);background:#101216;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.term-head{display:flex;gap:7px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.term-head i{width:10px;height:10px;border-radius:50%;background:var(--dim)}
+.term-body{padding:20px 22px 26px;font:600 16px/1.7 var(--display);min-height:260px}
+.term-body .l{display:block;color:var(--slate);white-space:pre-wrap}
+.term-body .l b{color:var(--white);font-weight:700}
+.term-body .l .ok{color:var(--yellow)}
+.term-body .l.hl{color:var(--white);border-left:3px solid var(--yellow);padding-left:12px;margin:6px 0}
+.cursor{display:inline-block;width:9px;height:1.05em;background:var(--yellow);vertical-align:-.15em;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.cap{margin:12px 2px 0;font:italic 400 17px/1.3 var(--serif);color:var(--slate)}
+
+/* —— 4. ATMINTIS —— */
+.mem{padding:clamp(80px,14vh,170px) 0 0}
+.mem-top{display:flex;flex-wrap:wrap;gap:24px 60px;align-items:end;justify-content:space-between}
+.read{font:800 clamp(64px,11vw,168px)/.85 var(--display);letter-spacing:-.05em;font-variant-numeric:tabular-nums}
+.read small{font:italic 400 .22em/1 var(--serif);letter-spacing:0;margin-left:.2em}
+.pickline{font:italic 400 clamp(22px,2.4vw,32px)/1.25 var(--serif);max-width:26ch}
+.pickline b{font:800 1.1em var(--display);font-style:normal;color:var(--yellow);letter-spacing:-.02em}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:46px;background:transparent;margin:34px 0 8px;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:6px;background:linear-gradient(to right,var(--yellow) var(--p,40%),var(--dim) var(--p,40%));border-radius:3px}
+input[type=range]::-moz-range-track{height:6px;background:var(--dim);border-radius:3px}
+input[type=range]::-moz-range-progress{height:6px;background:var(--yellow);border-radius:3px}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:34px;height:34px;border-radius:50%;background:var(--white);border:4px solid var(--yellow);margin-top:-14px}
+input[type=range]::-moz-range-thumb{width:26px;height:26px;border-radius:50%;background:var(--white);border:4px solid var(--yellow)}
+.ticks{display:flex;justify-content:space-between;font:700 14px var(--display);color:var(--slate)}
+.models{margin-top:40px;display:grid;gap:10px}
+.mod{display:grid;grid-template-columns:minmax(120px,190px) 1fr minmax(120px,210px);gap:16px;align-items:center;transition:opacity .2s}
+.mod b{font:800 22px var(--display);letter-spacing:-.02em}
+.mod .bar2{height:28px;background:#14161b;border-radius:3px;overflow:hidden}
+.mod .bar2 i{display:block;height:100%;background:var(--white);transform-origin:left;transition:background .2s}
+.mod span{font:italic 400 18px/1.2 var(--serif);color:var(--slate)}
+.mod.no{opacity:.35}
+.mod.no .bar2 i{background:var(--dim)}
+.mod.best .bar2 i{background:var(--yellow)}
+.mod.best b{color:var(--yellow)}
+@media (max-width:640px){.mod{grid-template-columns:96px 1fr}.mod span{grid-column:1/-1;margin-top:-8px}}
+
+/* —— 5. DUK —— */
+.faq{padding:clamp(80px,14vh,170px) 0 0}
+.faq details{border-top:1px solid var(--line);padding:6px 0}
+.faq details:last-of-type{border-bottom:1px solid var(--line)}
+.faq summary{cursor:pointer;font:800 clamp(24px,3.2vw,40px)/1.15 var(--display);letter-spacing:-.025em;padding:22px 0;list-style:none;display:flex;justify-content:space-between;gap:20px}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:"+";font-weight:400;color:var(--yellow)}
+.faq details[open] summary::after{content:"–"}
+.faq p{margin:0 0 26px;max-width:52ch;color:var(--slate);font-size:23px}
+
+footer{padding:clamp(80px,14vh,160px) 0 40px;overflow:hidden}
+.mark{font:800 clamp(80px,22vw,360px)/.8 var(--display);letter-spacing:-.06em;color:transparent;-webkit-text-stroke:2px var(--dim);white-space:nowrap;margin:0 0 30px;user-select:none}
+.foot{display:flex;flex-wrap:wrap;gap:10px 28px;font:italic 400 18px var(--serif);color:var(--slate)}
+.foot a{text-underline-offset:3px}
+
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<header class="bar bar-top">
+  <a class="brand" href="#kadras"><i></i>SRT Forge</a>
+  <span class="clock" data-clock aria-hidden="true">00:00:00,000</span>
+  <a class="get" id="top-get" href="#atsisiuntimai">Atsisiųsti</a>
+</header>
+<div class="perf l" aria-hidden="true"></div><div class="perf r" aria-hidden="true"></div>
+
+<main>
+  <section id="kadras" class="hero">
+    <div class="wrap">
+      <h1 id="h1"><span class="l1">Kalba į tekstą.</span><span class="l2">Visi įrankiai vienoje vietoje.</span></h1>
+
+      <div class="tabs" role="tablist" aria-label="Ką programa daro su tuo pačiu įrašu">
+        <button role="tab" aria-selected="true" data-tab="sub">Subtitrai</button>
+        <button role="tab" aria-selected="false" data-tab="txt">Transkriptas</button>
+        <button role="tab" aria-selected="false" data-tab="en">Vertimas</button>
+        <button role="tab" aria-selected="false" data-tab="json">JSON</button>
+        <span class="soon" title="Kuriama">Gyvai · netrukus</span>
+      </div>
+
+      <div class="stage" role="img" aria-label="Pavyzdys: tas pats įrašas kaip subtitrai, transkriptas, vertimas ir JSON. Bangos formą galima vilkti.">
+        <canvas id="wave"></canvas>
+        <div class="out" id="out" aria-hidden="true"></div>
+      </div>
+
+      <div class="deck">
+        <div class="srt" id="srt" aria-hidden="true"> </div>
+        <div>
+          <p class="lead">Transkribuok garso ir video įrašus, subtitruok vaizdo failus, versk į anglų kalbą ir diktuok mikrofonu. Viskas vyksta tavo kompiuteryje, be paskyros ir be debesies.</p>
+          <div class="ctas">
+            <a class="go" id="main-dl" href="#atsisiuntimai">Pasirinkti atsisiuntimą</a>
+            <span class="ghost" id="main-hint" style="border:0">Windows, macOS ir Linux</span>
+            <button class="play" id="play" type="button" aria-pressed="true">Sustabdyti demo</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="irankiai" class="tools">
+    <div class="wrap">
+      <h2 class="big">Ką moka.</h2>
+      <p class="lead2">Vienas langas, daug darbų. Kas jau veikia, o kas dar kuriama, pažymėta aiškiai.</p>
+      <ul class="toolrows">
+        <li><b>Transkribuoja</b><span>Garso ir video failus: mp3, wav, m4a, mp4, mov, mkv. Kelis iš karto.</span><em class="on">veikia</em></li>
+        <li><b>Subtitruoja</b><span>SRT ir VTT failai, o video gali gauti subtitrus kaip takelį arba įdegtus į vaizdą.</span><em class="on">veikia</em></li>
+        <li><b>Verčia</b><span>Į anglų kalbą, tiesiai iš garso. Atpažįsta ~100 kalbų.</span><em class="on">veikia</em></li>
+        <li><b>Diktuoja</b><span>Spustelėji, kalbi į mikrofoną, gauni tekstą.</span><em class="on">veikia</em></li>
+        <li><b>Eksportuoja</b><span>Tekstas pastraipomis, tekstas su laikais, JSON su kiekvieno žodžio laiku.</span><em class="on">veikia</em></li>
+        <li><b>Atskiria kalbėtojus</b><span>Kas ką pasakė, be paskyrų ir be debesies. Vardus gali pervadinti.</span><em class="on">veikia</em></li>
+        <li><b>Verčia į kelias kalbas</b><span>Vienu metu, pvz. anglų, vokiečių, lenkų. Mašininis vertimas, tinka orientuotis, o ne skelbti be peržiūros.</span><em class="on">veikia</em></li>
+        <li><b>Rezultatas šalia failo</b><span>Pasirenki failą, o .srt, .vtt ar video su subtitrais atsiduria šalia originalo. Televizijos ir socialinių tinklų subtitrų stiliai.</span><em class="on">veikia</em></li>
+        <li><b>Gyvi subtitrai</b><span>Realiu laiku iš mikrofono ar garso plokštės, su langu, kurį gali įdėti į OBS ar vMix.</span><em>kuriama</em></li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="atsisiuntimai" class="dl">
+    <div class="wrap">
+      <h2>Pasirink kompiuterį.</h2>
+      <p class="intro">Atsisiunti vieną failą ir jį paleidi. Python ar kitų programų diegti nereikia.</p>
+      <div class="rows" id="rows"></div>
+      <div class="dl-foot"><span id="dl-note"></span><span>Nežinai, kokį Mac turi? Apple meniu → <i>Apie šį Mac</i>: „Chip Apple M…“ = Apple Silicon, „Intel“ = Intel.</span></div>
+      <details class="cmd" id="cmd">
+        <summary>Diegimas viena komanda (pažengusiems)</summary>
+        <p>Windows, PowerShell:</p><pre><code>irm https://srt.1millionads.net/install.ps1 | iex</code></pre>
+        <p>macOS ir Linux, Terminal:</p><pre><code>curl -fsSL https://srt.1millionads.net/install.sh | sh</code></pre>
+      </details>
+      <details class="cmd">
+        <summary>Sistema rodo įspėjimą?</summary>
+        <p><b style="font-family:var(--display)">Windows.</b> Programa dar neturi mokamo „Microsoft“ sertifikato. „SmartScreen“ lange spustelėk <i>Daugiau informacijos</i>, tada <i>Vis tiek vykdyti</i>.</p>
+        <p><b style="font-family:var(--display)">macOS.</b> Nutempk programą į Applications, tada spustelėk ją dešiniu pelės klavišu ir pasirink <i>Open</i>. Reikia tik pirmą kartą.</p>
+        <p><b style="font-family:var(--display)">Linux.</b> Išarchyvuok ir paleisk <i>Install.sh</i>. Sudo nereikia.</p>
+      </details>
+    </div>
+  </section>
+
+  <section id="paleidus" class="run">
+    <div class="wrap run-grid">
+      <div>
+        <h2 class="big">Pirmas paleidimas.</h2>
+        <p class="lead2">Programa pirmiausia apžiūri kompiuterį, o ne puola siųstis. Jei Whisper modelis jau yra, naudoja jį.</p>
+        <ol class="steps">
+          <li><time>00:00</time><div><b>Patikrina kompiuterį</b><span>Atmintį, vietą diske ir vaizdo plokštę. Pagal tai parenka modelį.</span></div></li>
+          <li><time>00:05</time><div><b>Suranda turimus modelius</b><span>HuggingFace talpykloje ir kituose įprastuose kataloguose. Tinkamą randa, nieko nesiunčia.</span></div></li>
+          <li><time>00:10</time><div><b>Tu nutempi įrašą</b><span>Garsas arba video, galima keli failai iš karto. Arba spustelėk „Diktuoti“ ir kalbėk į mikrofoną.</span></div></li>
+          <li><time>02:40</time><div><b>Gauni tekstą, subtitrus ar JSON</b><span>Tyla pašalinama prieš atpažįstant, o pasikartojančios haliucinacijos pažymimos.</span></div></li>
+        </ol>
+      </div>
+      <div>
+        <div class="term" id="term" role="img" aria-label="Pavyzdys, kaip atrodo sistemos patikra pirmo paleidimo metu">
+          <div class="term-head"><i></i><i></i><i></i></div>
+          <div class="term-body" id="term-body"></div>
+        </div>
+        <p class="cap">Pavyzdys. Tavo kompiuteryje skaičiai ir rasti modeliai bus kiti.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="atmintis" class="mem">
+    <div class="wrap">
+      <h2 class="big">Kiek turi atminties?</h2>
+      <div class="mem-top">
+        <div class="read"><span id="gb">8</span><small>GB RAM</small></div>
+        <p class="pickline" id="pickline"></p>
+      </div>
+      <input id="ram" type="range" min="0" max="4" step="1" value="2" aria-label="Kompiuterio atmintis">
+      <div class="ticks" aria-hidden="true"><span>2</span><span>4</span><span>8</span><span>16</span><span>32</span></div>
+      <div class="models" id="models"></div>
+    </div>
+  </section>
+
+  <section id="duk" class="faq">
+    <div class="wrap">
+      <h2 class="big">Klausimai.</h2>
+      <details><summary>Ar reikia interneto?</summary><p>Tik diegimui ir vienkartiniam modelio atsisiuntimui, jei jo dar neturi. Vėliau programa dirba be interneto.</p></details>
+      <details><summary>Ar mano įrašai kur nors siunčiami?</summary><p>Ne. Atpažinimas vyksta tavo kompiuteryje, o programa klauso tik vietinio adreso 127.0.0.1.</p></details>
+      <details><summary>Kaip atnaujinti?</summary><p>Pasirodžius naujai versijai programa parodo pranešimą, atsisiunčia failą, patikrina jo Ed25519 parašą ir sha256 ir paleidžia diegimą.</p></details>
+      <details><summary>Kaip pašalinti?</summary><p>Windows: Nustatymai → Programos → SRT Forge Lite. macOS: nutempk programą į Trash. Linux: ištrink ~/.local/share/srtforge-lite ir meniu įrašą. Modeliai lieka HuggingFace talpykloje.</p></details>
+      <details><summary>Android ir iPhone?</summary><p>Android programa kuriama. iPhone nepalaikomas: Apple neleidžia paprasto diegimo be App Store.</p></details>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <p class="mark" aria-hidden="true">SRT Forge</p>
+      <div class="foot"><span>SRT Forge Lite 0.4.0</span><a href="privatumas/">Privatumas</a><a href="lite/latest.json">latest.json</a><a href="downloads.json">downloads.json</a></div>
+    </div>
+  </footer>
+</main>
+
+<nav class="bar bar-bottom" aria-label="Puslapio scenos">
+  <span class="prog" id="prog"></span>
+  <div class="scenes" id="scenes">
+    <a href="#kadras">Kadras</a><a href="#irankiai">Ką moka</a><a href="#atsisiuntimai">Atsisiuntimai</a><a href="#paleidus">Paleidimas</a><a href="#atmintis">Atmintis</a><a href="#duk">Klausimai</a>
+  </div>
+  <span class="clock" data-clock aria-hidden="true">00:00:00,000</span>
+</nav>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const params = new URLSearchParams(location.search);
+if (params.get("flat")) document.documentElement.style.setProperty("--vh", "900px");   // peržiūrai: aukšti ekrano kadrai
+const tc = s => { const ms = Math.max(0, Math.round(s * 1000)), p = (n, w) => String(n).padStart(w, "0");
+  return `${p(Math.floor(ms / 3600000), 2)}:${p(Math.floor(ms % 3600000 / 60000), 2)}:${p(Math.floor(ms % 60000 / 1000), 2)},${p(ms % 1000, 3)}`; };
+
+/* ——— 1. KADRAS: tas pats įrašas keliais pavidalais; vienas laikrodis ——— */
+const LOOP = 12.4;
+const CUES = [
+  {s: .6, e: 4.8, text: "Sveiki, šiandien kalbėsime apie maisto kainas.", en: "Hello, today we will talk about food prices.",
+   words: [["Sveiki,", .6, 1.2], ["šiandien", 1.3, 2.0], ["kalbėsime", 2.1, 2.9], ["apie", 3.0, 3.35], ["maisto", 3.4, 3.9], ["kainas.", 4.0, 4.8]]},
+  {s: 6.0, e: 10.8, text: "Pieno kaina per metus pakilo dešimčia procentų.", en: "The price of milk rose by ten percent over the year.",
+   words: [["Pieno", 6.0, 6.5], ["kaina", 6.6, 7.2], ["per", 7.3, 7.55], ["metus", 7.6, 8.2], ["pakilo", 8.4, 9.0], ["dešimčia", 9.1, 9.8], ["procentų.", 9.9, 10.7]]}
+];
+const canvas = $("#wave"), g = canvas.getContext("2d");
+let W = 0, H = 0, dpr = 1;
+function size() { dpr = Math.min(devicePixelRatio || 1, 2); W = canvas.clientWidth; H = canvas.clientHeight; canvas.width = W * dpr; canvas.height = H * dpr; g.setTransform(dpr, 0, 0, dpr, 0, 0); }
+addEventListener("resize", size); size();
+
+const N = 260;
+const env = Array.from({length: N}, (_, i) => {
+  const t = i / N * LOOP, word = CUES.flatMap(c => c.words).find(w => t >= w[1] && t <= w[2]);
+  const r = Math.abs(Math.sin(i * 12.9898) * 43758.5453) % 1;
+  return word ? (0.3 + 0.7 * Math.abs(Math.sin(i * 0.85 + r * 2))) * (0.55 + 0.45 * r) : 0.035 + 0.03 * r;
+});
+
+let t = 0, playing = !reduce, last = performance.now(), dragging = false, tab = "sub", userTab = false;
+const fixedT = parseFloat(params.get("t"));
+if (!Number.isNaN(fixedT)) { t = fixedT; playing = false; } else if (reduce) { t = 9.5; }
+if (params.get("tab")) { tab = params.get("tab"); userTab = true; }
+
+const out = $("#out");
+function buildOut() {
+  if (tab === "txt") out.innerHTML = "<p>" + CUES.map(c => c.words.map(w => `<span class="tw" data-t="${w[1]}">${w[0]}</span>`).join(" ")).join("<br><br>") + "</p>";
+  else out.innerHTML = '<div class="sub" id="sub"></div>';
+}
+function paintOut(ci, show) {
+  if (tab === "sub") { const el = $("#sub"); if (el) el.textContent = ci >= 0 ? CUES[ci].text : ""; }
+  else if (tab === "txt") out.querySelectorAll(".tw").forEach(el => el.classList.toggle("on", t >= parseFloat(el.dataset.t)));
+  else if (tab === "en") out.innerHTML = `<p style="font-style:italic">${show >= 0 ? CUES[show].en : ""}</p>`;
+  else if (tab === "json") {
+    if (show < 0) { out.innerHTML = "<pre> </pre>"; return; }
+    const c = CUES[show], seen = c.words.filter(w => t >= w[1]).slice(-3);
+    out.innerHTML = `<pre>{ "start": ${c.s}, "end": ${c.e}, "text": "${c.text.slice(0, 30)}…",\n  "words": [ ${seen.map(w => `<b>{ "word": "${w[0]}", "start": ${w[1]}, "end": ${w[2]} }</b>`).join(",\n           ")} ]</pre>`;
+  }
+}
+function render() {
+  g.clearRect(0, 0, W, H);
+  const area = H - 84, mid = area * 0.40, maxBar = area * 0.36, bw = W / N;
+  for (let i = 0; i < N; i++) {
+    const played = i / N * LOOP <= t, h = Math.max(1.5, env[i] * maxBar);
+    g.fillStyle = played ? "#ffd83a" : "#30333a";
+    g.fillRect(i * bw + bw * 0.18, mid - h, bw * 0.64, h * 2);
+  }
+  g.font = "700 12.5px Bricolage, Arial, sans-serif"; g.textBaseline = "top"; let lastEnd = -1e9;
+  for (const c of CUES) for (const [w, s] of c.words) {
+    const x = s / LOOP * W, wd = g.measureText(w).width;
+    if (x < lastEnd + 8) continue;
+    g.fillStyle = t >= s ? "#f3f0e8" : "#5b5e66"; g.fillText(w, x, mid + maxBar + 12);
+    g.fillRect(x, mid + maxBar + 6, 1.5, 5); lastEnd = x + wd;
+  }
+  const px = t / LOOP * W;
+  g.fillStyle = "#ff4b2b"; g.fillRect(px - 1, 0, 2, mid + maxBar + 4);
+  g.beginPath(); g.moveTo(px - 6, 0); g.lineTo(px + 6, 0); g.lineTo(px, 9); g.fill();
+
+  const ci = CUES.findIndex(c => t >= c.s && t <= c.e);
+  const show = ci >= 0 ? ci : CUES.reduce((a, c, i) => (t > c.e ? i : a), -1);
+  paintOut(ci, show);
+  $("#srt").innerHTML = show >= 0
+    ? `<b>${show + 1}</b>\n${tc(CUES[show].s)} --> ${tc(CUES[show].e)}\n<b>${CUES[show].text}</b>` : " ";
+}
+function setTab(name, byUser) {
+  tab = name; if (byUser) userTab = true; buildOut();
+  document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === name)));
+  render();
+}
+document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => setTab(b.dataset.tab, true)));
+buildOut(); setTab(tab, false);
+const ORDER = ["sub", "txt", "en", "json"];
+function tick(now) {
+  if (playing && !dragging) { t += (now - last) / 1000; if (t > LOOP) { t = 0; if (!userTab) setTab(ORDER[(ORDER.indexOf(tab) + 1) % ORDER.length], false); } }
+  last = now; render(); requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+function scrub(e) { const r = canvas.getBoundingClientRect(); t = Math.min(LOOP, Math.max(0, (e.clientX - r.left) / r.width * LOOP)); render(); }
+canvas.addEventListener("pointerdown", e => { dragging = true; canvas.setPointerCapture(e.pointerId); scrub(e); });
+canvas.addEventListener("pointermove", e => { if (dragging) scrub(e); });
+canvas.addEventListener("pointerup", () => dragging = false);
+const playBtn = $("#play");
+function setPlay(v) { playing = v; playBtn.setAttribute("aria-pressed", String(v)); playBtn.textContent = v ? "Sustabdyti demo" : "Paleisti demo"; last = performance.now(); }
+playBtn.addEventListener("click", () => setPlay(!playing));
+if (!playing) setPlay(false);
+
+if (params.get("go")) addEventListener("load", () => document.getElementById(params.get("go"))?.scrollIntoView({behavior: "instant"}));
+
+/* ——— juostos: laikas pagal slinkimą, aktyvi scena ——— */
+const IDS = ["kadras", "irankiai", "atsisiuntimai", "paleidus", "atmintis", "duk"], TOTAL = 160;
+const links = [...document.querySelectorAll("#scenes a")];
+let queued = false;
+function onScroll() {
+  if (queued) return; queued = true;
+  requestAnimationFrame(() => { queued = false;
+    const max = document.documentElement.scrollHeight - innerHeight, f = max > 0 ? Math.min(1, scrollY / max) : 0;
+    document.querySelectorAll("[data-clock]").forEach(e => e.textContent = tc(f * TOTAL));
+    $("#prog").style.width = f * 100 + "%";
+    let on = IDS[0]; IDS.forEach(id => { if (document.getElementById(id).getBoundingClientRect().top < innerHeight * 0.45) on = id; });
+    links.forEach(a => a.setAttribute("aria-current", String(a.getAttribute("href") === "#" + on)));
+  });
+}
+addEventListener("scroll", onScroll, {passive: true}); addEventListener("resize", onScroll); onScroll();
+
+/* ——— 3. pirmo paleidimo „terminalas“ rašosi vieną kartą, kai pasirodo ekrane ——— */
+const LINES = [
+  ["Tikrinu kompiuterį…", ""],
+  ["  16 GB RAM · 10 gijų · Apple Silicon · laisva vieta 212 GB", ""],
+  ["Ieškau turimų modelių…", ""],
+  ["  HuggingFace talpykla:  large-v3  ✓", "ok"],
+  ["Radau jau turimą modelį „large-v3“. Nieko atsisiųsti nereikia.", "hl"],
+  ["Rastas kito įrankio modelis (whisper.cpp): ggml-large-v3.bin. Lite naudoja kitą formatą ir jo nenaudos.", ""],
+  ["Atidaryk langą ir nutempk įrašą.", ""]
+];
+const body = $("#term-body");
+function paintTerm(n, partial) {
+  body.innerHTML = LINES.slice(0, n).map(([t, k]) => `<span class="l ${k === "hl" ? "hl" : ""}">${k === "ok" ? t.replace("✓", '<span class="ok">✓</span>') : t}</span>`).join("")
+    + (partial ? `<span class="l">${partial}<span class="cursor"></span></span>` : n < LINES.length ? '<span class="l"><span class="cursor"></span></span>' : "");
+}
+let typed = false;
+function typeTerm() {
+  if (typed) return; typed = true;
+  if (reduce) { paintTerm(LINES.length, ""); return; }
+  let li = 0, ci = 0;
+  (function step() {
+    if (li >= LINES.length) { paintTerm(LINES.length, ""); return; }
+    const full = LINES[li][0]; ci += 2;
+    paintTerm(li, full.slice(0, ci));
+    if (ci >= full.length) { li++; ci = 0; setTimeout(step, 260); } else setTimeout(step, 16);
+  })();
+}
+paintTerm(0, "");
+new IntersectionObserver((es, ob) => { if (es[0].isIntersecting) { typeTerm(); ob.disconnect(); } }, {threshold: .35}).observe($("#term"));
+if (!Number.isNaN(parseFloat(params.get("term")))) { typed = true; paintTerm(LINES.length, ""); }
+
+/* ——— 4. atmintis ——— */
+const MODELS = [["base", 145, 1], ["small", 480, 2], ["medium", 1500, 5], ["large-v3-turbo", 1600, 6], ["large-v3", 3100, 8]];
+const GB = [2, 4, 8, 16, 32];
+const ram = $("#ram"), box = $("#models");
+MODELS.forEach(([n, mb, need]) => {
+  const row = document.createElement("div"); row.className = "mod"; row.dataset.name = n; row.dataset.need = need;
+  row.innerHTML = `<b>${n}</b><div class="bar2"><i style="width:${Math.max(4, mb / 31)}%"></i></div><span>~${mb >= 1000 ? (mb / 1000).toFixed(1).replace(".", ",") + " GB" : mb + " MB"} · nuo ${need} GB RAM</span>`;
+  box.append(row);
+});
+function recommend(gb) { return gb >= 16 ? "large-v3" : gb >= 8 ? "medium" : gb >= 4 ? "small" : "base"; }
+function paintMem() {
+  const gb = GB[+ram.value], best = recommend(gb);
+  $("#gb").textContent = gb; ram.style.setProperty("--p", (+ram.value / 4 * 100) + "%");
+  box.querySelectorAll(".mod").forEach(m => { m.classList.toggle("no", +m.dataset.need > gb); m.classList.toggle("best", m.dataset.name === best); });
+  $("#pickline").innerHTML = `Programa pasiūlys <b>${best}</b>. Jei toks modelis jau yra kompiuteryje, nieko nesiųs.`;
+}
+ram.addEventListener("input", paintMem); paintMem();
+
+/* ——— 2. atsisiuntimai ——— */
+const OS = (() => { const u = navigator.userAgent.toLowerCase();
+  return u.includes("android") ? "android" : u.includes("win") ? "windows" : (u.includes("mac") && !u.includes("iphone") && !u.includes("ipad")) ? "macos"
+    : (u.includes("iphone") || u.includes("ipad")) ? "ios" : "linux"; })();
+const META = {windows: ["Windows", "10 ir 11, 64 bit"], macos: ["macOS", "13 ar naujesnė"], linux: ["Linux", "Debian, Ubuntu, Fedora, Arch"], android: ["Android", "programa kuriama"]};
+const mb = n => n >= 1e9 ? (n / 1e9).toFixed(1).replace(".", ",") + " GB" : Math.round(n / 1e6) + " MB";
+const PICK = {"windows-x64": ["Atsisiųsti .exe", "Windows diegimo vedlys"], "macos-arm64": ["Apple Silicon", "M1, M2, M3, M4"], "macos-x64": ["Intel", "Mac iki 2020"], "linux-x64": ["Atsisiųsti .tar.gz", "paleisk Install.sh"]};
+const el = (t, p = {}, ...k) => { const e = Object.assign(document.createElement(t), p); k.forEach(c => e.append(c)); return e; };
+
+(async function () {
+  let data = null;
+  try { const r = await fetch("downloads.json", {cache: "no-store"}); if (r.ok) data = await r.json(); } catch (e) {}
+  const files = ((data && data.files) || []).filter(f => /^https:\/\//.test(f.url));
+  const rows = $("#rows");
+  for (const os of ["windows", "macos", "linux", "android"]) {
+    const mine = os === OS, list = files.filter(f => f.platform === os);
+    const row = el("div", {className: "row"});
+    row.append(el("h3", {className: "os"}, META[os][0], el("small", {textContent: META[os][1]}), mine ? el("span", {className: "mine", textContent: "tavo kompiuteris"}) : ""));
+    const picks = el("div", {className: "picks"});
+    if (list.length) list.forEach(f => { const [a, b] = PICK[f.platform + "-" + f.arch] || ["Atsisiųsti", ""];
+      const p = el("a", {className: "pick", href: f.url, title: "SHA-256: " + f.sha256}, a, el("span", {textContent: `${b} · ${mb(f.size)}`})); p.setAttribute("download", ""); picks.append(p); });
+    else { const na = el("span", {className: "pick"}, os === "android" ? "Netrukus" : "Ruošiama"); na.setAttribute("aria-disabled", "true"); picks.append(na); }
+    row.append(picks); rows.append(row);
+  }
+  const mineFiles = files.filter(f => f.platform === OS);
+  const main = $("#main-dl"), hint = $("#main-hint"), top = $("#top-get");
+  if (mineFiles.length === 1) { main.href = top.href = mineFiles[0].url; main.setAttribute("download", ""); main.textContent = "Atsisiųsti " + META[OS][0]; hint.textContent = `Versija ${data.version} · ${mb(mineFiles[0].size)}`; }
+  else if (mineFiles.length > 1) { main.href = "#atsisiuntimai"; main.textContent = "Atsisiųsti " + META[OS][0]; hint.textContent = "Pasirink Apple Silicon arba Intel žemiau"; }
+  else if (OS === "android" || OS === "ios") hint.textContent = "Telefonams programos dar nėra, atsisiųsk kompiuteriui";
+  else { hint.textContent = "Paketai ruošiami, žemiau yra diegimas viena komanda"; $("#cmd").open = true; }
+  if (data) $("#dl-note").textContent = `Versija ${data.version}. Failai pasirašyti Ed25519 raktu.`;
+  onScroll();
+})();
+</script>
+</body>
+</html>
