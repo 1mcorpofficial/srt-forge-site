@@ -5,7 +5,10 @@ import threading
 import time
 from typing import Callable, Dict, List, Optional, Tuple
 
-import numpy as np
+try:
+    import numpy as np
+except ImportError:          # sugadinta numpy neturi nuversti visos programos (gyvi subtitrai tuomet nepasileidžia)
+    np = None
 
 from .core import Cue, Word
 
@@ -22,8 +25,10 @@ def _norm(text: str) -> str:
 
 
 class LiveSession:
-    def __init__(self, transcribe_fn: Callable[[np.ndarray], Hypothesis], targets: Optional[list] = None,
+    def __init__(self, transcribe_fn: Callable[[object], Hypothesis], targets: Optional[list] = None,
                  translator=None, source_language: str = "lt", clock=time.time):
+        if np is None:
+            raise RuntimeError("nepavyko įkelti numpy")
         self.fn = transcribe_fn
         self.targets = targets or []
         self.translator = translator
@@ -173,7 +178,7 @@ def whisper_fn(model: str, language: Optional[str], model_dir: Optional[str], pr
 
     whisper = load_model(model, model_dir)
 
-    def run(audio: np.ndarray) -> Hypothesis:
+    def run(audio) -> Hypothesis:
         segments, _ = whisper.transcribe(audio, language=language or None, vad_filter=True, word_timestamps=True,
                                          condition_on_previous_text=False, initial_prompt=prompt or None, beam_size=1)
         return [(w.word.strip(), float(w.start), float(w.end)) for s in segments for w in (s.words or []) if w.word.strip()]

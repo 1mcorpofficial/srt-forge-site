@@ -31,6 +31,17 @@ def ensure_build_deps() -> None:
     needed = [("sherpa_onnx", "sherpa-onnx>=1.10"), ("sentencepiece", "sentencepiece>=0.1.99")]
     if sys.platform == "darwin":
         needed.append(("webview", "pywebview>=5"))
+    if sys.platform == "darwin":
+        # numpy 2.x macOS ratai naudoja naująjį Accelerate (macOS 14+) ir nepasileidžia macOS 12/13: imame numpy 1.26 (OpenBLAS)
+        try:
+            import numpy
+
+            old_enough = int(numpy.__version__.split(".")[0]) < 2
+        except ImportError:
+            old_enough = False
+        if not old_enough:
+            print("+ pip install numpy<2 (suderinamumas su macOS 12)", flush=True)
+            subprocess.run([sys.executable, "-m", "pip", "install", "--quiet", "--force-reinstall", "--no-deps", "numpy>=1.26,<2"], check=True)
     for module, requirement in needed:
         try:
             __import__(module)
@@ -106,8 +117,39 @@ echo "Įdiegta. Ieškok programų meniu: {NAME}"
     return target
 
 
+MAX_MACOS_MINOS = (12, 0)
+
+
+def check_min_macos(app: str) -> None:
+    """Visi supakuoti Mach-O failai turi veikti macOS 12: kitaip programa pas vartotoją nepasileis (CI bėga su naujesne macOS)."""
+    import re
+
+    bad = {}
+    for root, _dirs, files in os.walk(app):
+        for name in files:
+            path = os.path.join(root, name)
+            if os.path.islink(path) or not (name.endswith((".so", ".dylib")) or "." not in name):
+                continue
+            out = subprocess.run(["otool", "-l", path], capture_output=True, text=True).stdout
+            for block in out.split("Load command")[1:]:
+                if "LC_BUILD_VERSION" in block:
+                    match = re.search(r"minos (\d+)\.(\d+)", block)
+                elif "LC_VERSION_MIN_MACOSX" in block:
+                    match = re.search(r"version (\d+)\.(\d+)", block)
+                else:
+                    continue
+                if match and (int(match.group(1)), int(match.group(2))) > MAX_MACOS_MINOS:
+                    bad[os.path.relpath(path, app)] = (int(match.group(1)), int(match.group(2)))
+    if bad:
+        for path, found in sorted(bad.items())[:25]:
+            print(f"  per nauja macOS: {path} reikalauja {found[0]}.{found[1]}", flush=True)
+        raise SystemExit(f"{len(bad)} failų reikalauja naujesnės nei macOS {MAX_MACOS_MINOS[0]}: programa nepasileistų senesniuose Mac")
+    print("macOS suderinamumas OK (visi failai <= 12)", flush=True)
+
+
 def build_macos(dist: str, out: str) -> str:
     app = os.path.join(dist, f"{NAME}.app")
+    check_min_macos(app)
     import plistlib
 
     plist_path = os.path.join(app, "Contents", "Info.plist")
