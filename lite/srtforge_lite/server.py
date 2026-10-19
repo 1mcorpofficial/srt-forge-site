@@ -122,6 +122,7 @@ class App:
         self.live_factory = live_factory or self._make_live
         self.live: Optional[lv.LiveSession] = None
         self.live_id = ""
+        self.window_mode = False
         self.picker = picker
         self.revealer = revealer
         self.picked: set = set()               # tik pasirinkti per sistemos langą keliai gali būti apdorojami vietoje
@@ -363,7 +364,7 @@ class App:
                                             "title": entry and entry.get("title"), "size": entry and entry.get("size")})
                 if path == "/api/info":
                     return self._json(200, {"version": __version__, "models": MODELS, "recommended": recommend_model(),
-                                            "ram_gb": round(total_ram_gb(), 1), "out_dir": fl.default_out_dir()})
+                                            "ram_gb": round(total_ram_gb(), 1), "out_dir": fl.default_out_dir(), "window": app.window_mode})
                 if path == "/api/languages":
                     return self._json(200, {"targets": tr.LANGUAGES, "model_mb": tr.DOWNLOAD_MB,
                                             "model_ready": app.translator is not None or tr.model_ready(app.translation_dir)})
@@ -468,6 +469,9 @@ class App:
                         return self._json(404, {"error": "nerasta"})
                     app.live.stop()
                     return self._json(200, app.live.state())
+                if parsed.path == "/api/open-browser":
+                    webbrowser.open(f"http://127.0.0.1:{app.httpd.server_address[1]}/?t={app.token}")
+                    return self._json(200, {"ok": True})
                 if parsed.path == "/api/pick":
                     paths = app.picker()
                     if paths is None:
@@ -699,12 +703,19 @@ def main() -> None:
     parser.add_argument("--model-dir", default=os.environ.get("SRTFORGE_MODEL_DIR"))
     parser.add_argument("--idle-exit", type=int, default=0, metavar="SEK",
                         help="išsijungti, kai naršyklės langas uždarytas SEK sekundžių ir nėra darbų (0 = niekada)")
+    parser.add_argument("--browser", action="store_true", help="atidaryti numatytojoje naršyklėje, o ne programos lange")
+    parser.add_argument("--check-window", action="store_true", help="parodo, koks programos langas bus naudojamas")
     parser.add_argument("--version", action="store_true")
     parser.add_argument("command", nargs="?", choices=["update", "mcp", "mcp-config"],
                         help="update: patikrinti ir įdiegti naują versiją; mcp: MCP serveris Claude/kitų agentų valdymui (stdio)")
     args = parser.parse_args()
     if args.version:
         print(__version__)
+        return
+    if args.check_window:
+        from .window import describe
+
+        print(describe())
         return
     if args.command == "mcp-config":
         command = [sys.executable] if getattr(sys, "frozen", False) else [sys.executable, "-m", "srtforge_lite"]
@@ -725,7 +736,10 @@ def main() -> None:
     existing = running_instance_url()
     if existing:
         if not args.no_browser:
-            webbrowser.open(existing)
+            from .window import open_window
+
+            if args.browser or not open_window(existing, os.path.join(data_dir(), "window-profile")):
+                webbrowser.open(existing)
         print(f"SRT Forge Lite jau veikia: {existing}", flush=True)
         return
 
@@ -735,10 +749,20 @@ def main() -> None:
 
         faulthandler.dump_traceback_later(25, repeat=False, file=open(os.path.join(data_dir(), "srtforge.log"), "a", buffering=1))
     app = App(model_dir=args.model_dir, **_update_hooks())
-    url = app.start(args.port, open_browser=not args.no_browser)
+    use_window = not args.no_browser and not args.browser
+    url = app.start(args.port, open_browser=not args.no_browser and not use_window)
+    app.window_mode = use_window
     run_file = write_run_file(app, url)
     print(f"SRT Forge Lite {__version__}\nAtidaryk naršyklėje: {url}\nSustabdyti: Ctrl+C", flush=True)
     try:
+        if use_window:
+            from .window import open_window
+
+            if open_window(url, os.path.join(data_dir(), "window-profile")):
+                print("Langas uždarytas – išjungiama.", flush=True)
+                return
+            app.window_mode = False
+            webbrowser.open(url)                      # tinkamo lango nėra: naudojame naršyklę
         while True:
             time.sleep(1)
             if args.idle_exit and not app.busy() and app.idle_seconds() > args.idle_exit:

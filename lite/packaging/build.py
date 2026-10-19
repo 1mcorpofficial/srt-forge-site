@@ -28,7 +28,10 @@ NAME = "SRT Forge Lite"
 
 def ensure_build_deps() -> None:
     """Papildomos priklausomybės, kurių CI workflow dar neįdiegia (workflow failų su `repo` tokenu keisti negalima)."""
-    for module, requirement in (("sherpa_onnx", "sherpa-onnx>=1.10"), ("sentencepiece", "sentencepiece>=0.1.99")):
+    needed = [("sherpa_onnx", "sherpa-onnx>=1.10"), ("sentencepiece", "sentencepiece>=0.1.99")]
+    if sys.platform == "darwin":
+        needed.append(("webview", "pywebview>=5"))
+    for module, requirement in needed:
         try:
             __import__(module)
         except ImportError:
@@ -48,8 +51,12 @@ def pyinstaller(workdir: str, windowed: bool) -> str:
            "--collect-all", "faster_whisper", "--collect-all", "ctranslate2", "--collect-all", "av",
            "--collect-all", "imageio_ffmpeg", "--collect-all", "tokenizers", "--collect-all", "onnxruntime",
            "--collect-all", "certifi", "--collect-all", "sherpa_onnx", "--collect-all", "sentencepiece", "--collect-data", "srtforge_lite",
-           "--hidden-import", "srtforge_lite.server", "--hidden-import", "srtforge_lite.updater",
-           "--add-data", os.path.join(LITE, "srtforge_lite", "ui.html") + os.pathsep + "srtforge_lite"]
+           "--hidden-import", "srtforge_lite.server", "--hidden-import", "srtforge_lite.updater", "--hidden-import", "srtforge_lite.window", "--hidden-import", "srtforge_lite.mcp_server", "--hidden-import", "srtforge_lite.live", "--hidden-import", "srtforge_lite.files", "--hidden-import", "srtforge_lite.translate",
+           "--add-data", os.path.join(LITE, "srtforge_lite", "ui.html") + os.pathsep + "srtforge_lite",
+           "--add-data", os.path.join(LITE, "srtforge_lite", "overlay.html") + os.pathsep + "srtforge_lite",
+           "--add-data", os.path.join(LITE, "srtforge_lite", "worklet.js") + os.pathsep + "srtforge_lite"]
+    if sys.platform == "darwin":
+        cmd += ["--collect-all", "webview", "--hidden-import", "webview.platforms.cocoa"]
     if windowed:
         cmd.append("--windowed")
     cmd.append(os.path.join(HERE, "entry.py"))
@@ -101,6 +108,15 @@ echo "Įdiegta. Ieškok programų meniu: {NAME}"
 
 def build_macos(dist: str, out: str) -> str:
     app = os.path.join(dist, f"{NAME}.app")
+    import plistlib
+
+    plist_path = os.path.join(app, "Contents", "Info.plist")
+    with open(plist_path, "rb") as handle:
+        plist = plistlib.load(handle)
+    plist["NSMicrophoneUsageDescription"] = "Mikrofonas reikalingas diktavimui ir gyviems subtitrams. Garsas lieka šiame kompiuteryje."
+    plist["LSMinimumSystemVersion"] = "11.0"
+    with open(plist_path, "wb") as handle:
+        plistlib.dump(plist, handle)
     run(["codesign", "--force", "--deep", "--sign", "-", app])          # ad-hoc: Apple Silicon reikalauja bent tokio
     arch = "arm64" if platform.machine() == "arm64" else "x64"
     target = os.path.join(out, f"SRT-Forge-Lite-{__version__}-macos-{arch}.dmg")

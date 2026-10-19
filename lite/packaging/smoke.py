@@ -67,6 +67,10 @@ def main() -> int:
     env = {k: v for k, v in os.environ.items() if k.upper() not in ("PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV")}
     env.update(SRTFORGE_DATA_DIR=data, SRTFORGE_MODEL_DIR=models, SRTFORGE_DEBUG="1")
     # PATH palikti: Windows reikia sisteminių DLL; ffmpeg turi būti paties paketo viduje (tikrinam žemiau)
+    if sys.platform == "darwin":                  # macOS: savas langas turi būti supakuotas (pywebview), ne naršyklė
+        probe = subprocess.run([exe, "--check-window"], env=env, capture_output=True, text=True, timeout=120)
+        print("langas:", probe.stdout.strip(), probe.stderr.strip()[-300:], flush=True)
+        assert probe.stdout.strip() == "window:webview", f"nėra natyvaus lango: {probe.stdout!r} {probe.stderr[-500:]!r}"
     print(f"paleidžiama t={time.time():.3f}", flush=True)
     proc = subprocess.Popen([exe, "--no-browser", "--idle-exit", "120"], env=env,
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

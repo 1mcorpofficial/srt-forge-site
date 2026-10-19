@@ -82,7 +82,7 @@ footer{margin-top:32px;color:var(--muted);font-size:12px}
   <div class="row"><label>Vardai ir terminai (nebūtina, padeda atpažinti)<input type="text" id="prompt" placeholder="pvz. Jonas, Pricelio, Kaunas"></label></div>
 
   <div id="jobs"></div>
-  <footer>Versija __VERSION__ · tik šis kompiuteris (127.0.0.1)</footer>
+  <footer>Versija __VERSION__ · tik šis kompiuteris (127.0.0.1) <a href="#" id="to-browser" hidden>· mikrofonas neveikia? Atidaryti naršyklėje</a></footer>
 </main>
 <script>
 const T = "__TOKEN__";
@@ -95,6 +95,7 @@ let info = null;
 
 async function boot() {
   info = await (await fetch("/api/info", {headers: hdr})).json();
+  if (info.window) { $("to-browser").hidden = false; $("to-browser").onclick = e => { e.preventDefault(); fetch("/api/open-browser", {method: "POST", headers: hdr}); }; }
   const sys = await (await fetch("/api/system", {headers: hdr})).json();
   const langs = await (await fetch("/api/languages", {headers: hdr})).json();
   for (const [code, name] of Object.entries(langs.targets)) $("targets").insertAdjacentHTML("beforeend", `<label><input type="checkbox" value="${esc(code)}">${esc(name)}</label>`);

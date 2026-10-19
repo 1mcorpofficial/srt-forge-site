@@ -51,6 +51,9 @@ say "Diegiamos priklausomybės (kelios minutės, ~300 MB)..."
 "$VPY" -m pip install --quiet --only-binary=:all: "faster-whisper>=1.0" "av>=11,<19" "imageio-ffmpeg>=0.4" "cryptography>=41" "sherpa-onnx>=1.10" "sentencepiece>=0.1.99" \
   || die "Nepavyko įdiegti priklausomybių šiai sistemai. Lengviausia: atsisiųsk paruoštą programą (.dmg) iš https://srt.1millionads.net"
 
+# macOS: savas programos langas (be naršyklės); nepavykus programa atsidarys naršyklėje
+[ "$(uname -s)" = "Darwin" ] && { "$VPY" -m pip install --quiet --only-binary=:all: "pywebview>=5" || say "Natyvaus lango komponentas neįdiegtas – programa atsidarys naršyklėje."; }
+
 # 3. Manifestas -> parašas -> sha256 -> diegimas
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 curl -fsSL "$BASE_URL/lite/latest.json" -o "$TMP/latest.json" || die "Nepavyko gauti $BASE_URL/lite/latest.json"
