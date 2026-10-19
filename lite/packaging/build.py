@@ -120,13 +120,14 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", default=os.path.join(os.path.dirname(LITE), "dist-lite"))
     parser.add_argument("--public-key", default=os.environ.get("SRTFORGE_UPDATE_PUBLIC_KEY", ""))
+    parser.add_argument("--console", action="store_true", help="derinimui: be --windowed (konsolinė programa)")
     args = parser.parse_args()
     out = os.path.abspath(args.out)
     os.makedirs(out, exist_ok=True)
 
     system = platform.system()
     with tempfile.TemporaryDirectory(prefix="srtforge-pyi-") as work:
-        dist = pyinstaller(work, windowed=system in ("Windows", "Darwin"))
+        dist = pyinstaller(work, windowed=system in ("Windows", "Darwin") and not args.console)
         if args.public_key:
             write_public_key(dist, args.public_key)
         if system == "Linux":

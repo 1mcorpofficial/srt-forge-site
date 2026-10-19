@@ -14,9 +14,13 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install --upgrade pip pyinstaller faster-whisper imageio-ffmpeg cryptography "av>=11,<19"
       - run: choco install innosetup -y --no-progress
-      - run: python lite/packaging/build.py --out dist-lite
+      - name: Tinklo zondas (paprastas Python)
+        run: python lite/packaging/net_probe.py
+      - name: Konsolinis paketas (be --windowed)
+        run: python lite/packaging/build.py --console --out dist-console
         env:
           SRTFORGE_UPDATE_PUBLIC_KEY: ${{ vars.SRTFORGE_UPDATE_PUBLIC_KEY }}
-      - name: Dūmų testas
+      - name: Dūmų testas - konsolinis
         shell: bash
-        run: python lite/packaging/smoke.py "$(ls dist-lite/* | head -1)"
+        continue-on-error: true
+        run: python lite/packaging/smoke.py "$(ls dist-console/* | head -1)"
