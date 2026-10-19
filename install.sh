@@ -44,9 +44,12 @@ say "Kuriama aplinka: $HOME_DIR"
 mkdir -p "$HOME_DIR" "$BIN_DIR"
 "$PY" -m venv "$HOME_DIR/venv"
 VPY="$HOME_DIR/venv/bin/python"
-"$VPY" -m pip install --quiet --upgrade pip
+say "Python: $("$VPY" -c 'import sys,platform;print(sys.version.split()[0], platform.machine())')"
+"$VPY" -m pip install --quiet --upgrade pip || die "Nepavyko atnaujinti pip (patikrink internetą)."
 say "Diegiamos priklausomybės (kelios minutės, ~300 MB)..."
-"$VPY" -m pip install --quiet "faster-whisper>=1.0" "av>=11,<19" "imageio-ffmpeg>=0.4" "cryptography>=41" "sherpa-onnx>=1.10" "sentencepiece>=0.1.99"
+# Tik paruošti paketai (wheel): jokio kompiliavimo iš šaltinio, kuriam reikėtų pkg-config ar kompiliatoriaus
+"$VPY" -m pip install --quiet --only-binary=:all: "faster-whisper>=1.0" "av>=11,<19" "imageio-ffmpeg>=0.4" "cryptography>=41" "sherpa-onnx>=1.10" "sentencepiece>=0.1.99" \
+  || die "Nepavyko įdiegti priklausomybių šiai sistemai. Lengviausia: atsisiųsk paruoštą programą (.dmg) iš https://srt.1millionads.net"
 
 # 3. Manifestas -> parašas -> sha256 -> diegimas
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT

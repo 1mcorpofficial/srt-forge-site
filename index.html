@@ -243,6 +243,7 @@ footer{padding:clamp(80px,14vh,160px) 0 40px;overflow:hidden}
         <li><b>Atskiria kalbėtojus</b><span>Kas ką pasakė, be paskyrų ir be debesies. Vardus gali pervadinti.</span><em class="on">veikia</em></li>
         <li><b>Verčia į kelias kalbas</b><span>Vienu metu, pvz. anglų, vokiečių, lenkų. Mašininis vertimas, tinka orientuotis, o ne skelbti be peržiūros.</span><em class="on">veikia</em></li>
         <li><b>Rezultatas šalia failo</b><span>Pasirenki failą, o .srt, .vtt ar video su subtitrais atsiduria šalia originalo. Televizijos ir socialinių tinklų subtitrų stiliai.</span><em class="on">veikia</em></li>
+        <li><b>Valdoma per Claude</b><span>Programa turi MCP serverį: Claude Desktop ar Claude Code gali pats sukurti subtitrus tavo failams, be API raktų. Komanda <code>srtforge mcp-config</code> parodo, ką įdėti.</span><em class="on">veikia</em></li>
         <li><b>Gyvi subtitrai</b><span>Realiu laiku iš mikrofono ar garso plokštės, su langu, kurį gali įdėti į OBS ar vMix.</span><em class="on">veikia</em></li>
       </ul>
     </div>
@@ -317,7 +318,7 @@ footer{padding:clamp(80px,14vh,160px) 0 40px;overflow:hidden}
   <footer>
     <div class="wrap">
       <p class="mark" aria-hidden="true">SRT Forge</p>
-      <div class="foot"><span>SRT Forge Lite 0.5.0</span><a href="privatumas/">Privatumas</a><a href="lite/latest.json">latest.json</a><a href="downloads.json">downloads.json</a></div>
+      <div class="foot"><span>SRT Forge Lite 0.6.0</span><a href="privatumas/">Privatumas</a><a href="lite/latest.json">latest.json</a><a href="downloads.json">downloads.json</a></div>
     </div>
   </footer>
 </main>
@@ -497,7 +498,7 @@ ram.addEventListener("input", paintMem); paintMem();
 const OS = (() => { const u = navigator.userAgent.toLowerCase();
   return u.includes("android") ? "android" : u.includes("win") ? "windows" : (u.includes("mac") && !u.includes("iphone") && !u.includes("ipad")) ? "macos"
     : (u.includes("iphone") || u.includes("ipad")) ? "ios" : "linux"; })();
-const META = {windows: ["Windows", "10 ir 11, 64 bit"], macos: ["macOS", "13 ar naujesnė"], linux: ["Linux", "Debian, Ubuntu, Fedora, Arch"], android: ["Android", "programa kuriama"]};
+const META = {windows: ["Windows", "10 ir 11, 64 bit"], macos: ["macOS", "12 ar naujesnė"], linux: ["Linux", "Debian, Ubuntu, Fedora, Arch"], android: ["Android", "programa kuriama"]};
 const mb = n => n >= 1e9 ? (n / 1e9).toFixed(1).replace(".", ",") + " GB" : Math.round(n / 1e6) + " MB";
 const PICK = {"windows-x64": ["Atsisiųsti .exe", "Windows diegimo vedlys"], "macos-arm64": ["Apple Silicon", "M1, M2, M3, M4"], "macos-x64": ["Intel", "Mac iki 2020"], "linux-x64": ["Atsisiųsti .tar.gz", "paleisk Install.sh"]};
 const el = (t, p = {}, ...k) => { const e = Object.assign(document.createElement(t), p); k.forEach(c => e.append(c)); return e; };

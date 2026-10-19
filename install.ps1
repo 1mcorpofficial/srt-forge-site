@@ -34,7 +34,8 @@ $vpy = Join-Path $Home_ 'venv\Scripts\python.exe'
 $vpyw = Join-Path $Home_ 'venv\Scripts\pythonw.exe'
 & $vpy -m pip install --quiet --upgrade pip
 Write-Host 'Diegiamos priklausomybės (kelios minutės, ~300 MB)...'
-& $vpy -m pip install --quiet 'faster-whisper>=1.0' 'av>=11,<19' 'imageio-ffmpeg>=0.4' 'cryptography>=41' 'sherpa-onnx>=1.10' 'sentencepiece>=0.1.99'
+& $vpy -m pip install --quiet --only-binary=:all: 'faster-whisper>=1.0' 'av>=11,<19' 'imageio-ffmpeg>=0.4' 'cryptography>=41' 'sherpa-onnx>=1.10' 'sentencepiece>=0.1.99'
+if ($LASTEXITCODE -ne 0) { throw 'Nepavyko įdiegti priklausomybių. Atsisiųsk paruoštą .exe iš https://srt.1millionads.net' }
 
 # 3. Manifestas -> parašas -> sha256 -> diegimas
 $tmp = Join-Path ([IO.Path]::GetTempPath()) ("srtforge-" + [guid]::NewGuid())

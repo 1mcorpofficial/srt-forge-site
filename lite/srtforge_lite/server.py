@@ -700,11 +700,22 @@ def main() -> None:
     parser.add_argument("--idle-exit", type=int, default=0, metavar="SEK",
                         help="išsijungti, kai naršyklės langas uždarytas SEK sekundžių ir nėra darbų (0 = niekada)")
     parser.add_argument("--version", action="store_true")
-    parser.add_argument("command", nargs="?", choices=["update"], help="update: patikrinti ir įdiegti naują versiją")
+    parser.add_argument("command", nargs="?", choices=["update", "mcp", "mcp-config"],
+                        help="update: patikrinti ir įdiegti naują versiją; mcp: MCP serveris Claude/kitų agentų valdymui (stdio)")
     args = parser.parse_args()
     if args.version:
         print(__version__)
         return
+    if args.command == "mcp-config":
+        command = [sys.executable] if getattr(sys, "frozen", False) else [sys.executable, "-m", "srtforge_lite"]
+        print(json.dumps({"mcpServers": {"srt-forge": {"command": command[0], "args": command[1:] + ["mcp"]}}}, indent=2))
+        print("\nĮdėk šį bloką į Claude Desktop konfigūraciją (Settings > Developer > Edit Config) arba paleisk Claude Code:\n"
+              f"  claude mcp add srt-forge -- {' '.join(command)} mcp", file=sys.stderr)
+        return
+    if args.command == "mcp":
+        from .mcp_server import serve
+
+        return serve(args.model_dir)
     if args.command == "update":
         from .updater import run_cli
 
