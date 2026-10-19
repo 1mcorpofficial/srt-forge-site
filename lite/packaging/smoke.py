@@ -211,6 +211,11 @@ def main() -> int:
         print("OK", platform.platform(), "subtitrų:", job["cues"])
         print(srt[:300])
         return 0
+    except (ConnectionError, OSError):
+        print("programa nebeatsako; procesas baigėsi:", proc.poll(), flush=True)
+        log = os.path.join(data, "srtforge.log")
+        print(open(log, encoding="utf-8", errors="replace").read()[-3000:] if os.path.exists(log) else "(žurnalo nėra)", flush=True)
+        raise
     finally:
         proc.terminate()
         try:

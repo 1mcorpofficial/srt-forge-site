@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="lt"><head><meta charset="utf-8"><title>Gyvi subtitrai</title>
+<style>
+html,body{margin:0;height:100%;background:transparent;overflow:hidden}
+#box{position:fixed;left:4%;right:4%;bottom:6%;text-align:center;font:700 var(--size,44px)/1.25 system-ui,"Segoe UI",Arial,sans-serif;color:#fff;
+  text-shadow:0 0 6px #000,2px 2px 3px #000,-2px -2px 3px #000,2px -2px 3px #000,-2px 2px 3px #000;white-space:pre-line;transition:opacity .4s}
+#box i{font-style:normal;opacity:.7}
+</style></head><body><div id="box"></div>
+<script>
+const T = "__TOKEN__", p = new URLSearchParams(location.search), id = p.get("id"), lang = p.get("lang") || "";
+if (p.get("size")) document.documentElement.style.setProperty("--size", p.get("size") + "px");
+if (p.get("bg")) document.body.style.background = p.get("bg");
+const box = document.getElementById("box"); let last = 0, shown = "";
+async function tick() {
+  try {
+    const s = await (await fetch(`/api/live/${id}?after=0`, {headers: {"X-Token": T}})).json();
+    const lines = s.lines || [], final = lines[lines.length - 1];
+    const text = f => (lang && f.tr && f.tr[lang]) || f.text;
+    let out = "";
+    if (s.partial && !lang) out = s.partial;                  // dalinė (dar nepatvirtinta) eilutė rodoma tik originalo kalba
+    else if (final) out = text(final);
+    if (out !== shown) { shown = out; box.textContent = out; last = Date.now(); }
+    box.style.opacity = out && Date.now() - last < 6000 ? 1 : 0;
+  } catch (e) {}
+  setTimeout(tick, 350);
+}
+tick();
+</script></body></html>

@@ -23,8 +23,10 @@ from .engine import MODELS, embed_subtitles, has_video, recommend_model, total_r
 from .models import system_report
 from . import translate as tr
 from . import files as fl
+from . import live as lv
 
 UI_PATH = os.path.join(os.path.dirname(__file__), "ui.html")
+OVERLAY_PATH = os.path.join(os.path.dirname(__file__), "overlay.html")
 # fmt -> (Content-Type, plėtinys, atvaizdavimas pagal darbą)
 FORMATS = {
     "srt": ("application/x-subrip", "srt", lambda job, cues: to_srt(cues, job.speaker_names)),
@@ -116,7 +118,10 @@ class Job:
 class App:
     def __init__(self, model_dir: Optional[str] = None, work_dir: Optional[str] = None, runner=transcribe,
                  update_checker=None, update_installer=None, update_delay: float = 15, translator=None,
-                 translation_dir: Optional[str] = None, picker=fl.pick_files, revealer=fl.reveal):
+                 translation_dir: Optional[str] = None, picker=fl.pick_files, revealer=fl.reveal, live_factory=None):
+        self.live_factory = live_factory or self._make_live
+        self.live: Optional[lv.LiveSession] = None
+        self.live_id = ""
         self.picker = picker
         self.revealer = revealer
         self.picked: set = set()               # tik pasirinkti per sistemos langą keliai gali būti apdorojami vietoje
@@ -145,7 +150,15 @@ class App:
         except Exception:  # noqa: BLE001 - atnaujinimų patikra niekada netrukdo darbui
             self.update_entry = None
 
+    def _make_live(self, options: dict) -> "lv.LiveSession":
+        translator = self._get_translator() if options["targets"] else None
+        language = options["language"] or "lt"
+        fn = lv.whisper_fn(options["model"], options["language"], self.model_dir, options.get("prompt"))
+        return lv.LiveSession(fn, options["targets"], translator, language)
+
     def busy(self) -> bool:
+        if self.live and self.live.running:
+            return True
         return any(job.state in ("waiting", "running") for job in self.jobs.values())
 
     def idle_seconds(self) -> float:
@@ -314,13 +327,34 @@ class App:
 
             # --- maršrutai ---
             def do_GET(self):
-                path = urllib.parse.urlparse(self.path).path
+                parsed = urllib.parse.urlparse(self.path)
+                path = parsed.path
                 if not self._authorized():
                     return self._json(403, {"error": "forbidden"})
                 if path == "/":
                     with open(UI_PATH, encoding="utf-8") as handle:
                         html = handle.read().replace("__TOKEN__", app.token).replace("__VERSION__", __version__)
                     return self._send(200, html.encode(), "text/html; charset=utf-8")
+                if path == "/live-worklet.js":
+                    with open(os.path.join(os.path.dirname(__file__), "worklet.js"), "rb") as handle:
+                        return self._send(200, handle.read(), "text/javascript; charset=utf-8")
+                if path == "/overlay":
+                    with open(OVERLAY_PATH, encoding="utf-8") as handle:
+                        return self._send(200, handle.read().replace("__TOKEN__", app.token).encode(), "text/html; charset=utf-8")
+                if path.startswith("/api/live/"):
+                    parts = path.strip("/").split("/")
+                    if len(parts) < 3 or parts[2] != app.live_id or not app.live:
+                        return self._json(404, {"error": "nerasta"})
+                    query = urllib.parse.parse_qs(parsed.query)
+                    if len(parts) == 3:
+                        after = int((query.get("after") or ["0"])[0] or 0)
+                        return self._json(200, app.live.state(after))
+                    if parts[3] in ("srt", "vtt", "txt"):
+                        lang = (query.get("lang") or [""])[0]
+                        cues = app.live.cues(lang)
+                        body = {"srt": to_srt, "vtt": to_vtt, "txt": lambda c: to_txt(c)}[parts[3]](cues)
+                        return self._send(200, body.encode(), "text/plain; charset=utf-8",
+                                          {"Content-Disposition": f"attachment; filename=\"gyvi-subtitrai{('.' + lang) if lang else ''}.{parts[3]}\""})
                 if path == "/api/ping":
                     return self._json(200, {"ok": True, "version": __version__})
                 if path == "/api/update":
@@ -373,6 +407,13 @@ class App:
                 parsed = urllib.parse.urlparse(self.path)
                 if not self._authorized():
                     return self._json(403, {"error": "forbidden"})
+                parts = parsed.path.strip("/").split("/")
+                if len(parts) == 4 and parts[:2] == ["api", "live"] and parts[3] == "audio":
+                    if parts[2] != app.live_id or not app.live or not app.live.running:
+                        return self._json(404, {"error": "sesija nevyksta"})
+                    length = min(int(self.headers.get("Content-Length") or 0), 4 << 20)
+                    app.live.feed(self.rfile.read(length))
+                    return self._json(200, {"ok": True})
                 if parsed.path != "/api/upload":
                     return self._json(404, {"error": "nerasta"})
                 query = {k: v[0] for k, v in urllib.parse.parse_qs(parsed.query).items()}
@@ -408,6 +449,25 @@ class App:
                     return self._json(403, {"error": "forbidden"})
                 parsed = urllib.parse.urlparse(self.path)
                 parts = parsed.path.strip("/").split("/")
+                if parsed.path == "/api/live":
+                    query = {k: v[0] for k, v in urllib.parse.parse_qs(parsed.query).items()}
+                    options, error = parse_options(query)
+                    if error:
+                        return self._json(400, {"error": error})
+                    if app.live:
+                        app.live.stop()
+                    try:
+                        app.live = app.live_factory(options)
+                    except Exception as error:  # noqa: BLE001
+                        _log_exception("live")
+                        return self._json(502, {"error": f"nepavyko paleisti: {error}"})
+                    app.live_id = uuid.uuid4().hex[:10]
+                    return self._json(200, {"id": app.live_id, "targets": options["targets"]})
+                if len(parts) == 4 and parts[:2] == ["api", "live"] and parts[3] == "stop":
+                    if parts[2] != app.live_id or not app.live:
+                        return self._json(404, {"error": "nerasta"})
+                    app.live.stop()
+                    return self._json(200, app.live.state())
                 if parsed.path == "/api/pick":
                     paths = app.picker()
                     if paths is None:

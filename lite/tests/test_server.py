@@ -240,6 +240,39 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(sorted(os.listdir(d)), ["a.json", "a.srt"])
         self.assertEqual(self.call("PUT", "/api/upload?name=a.wav&out_dir=relative", b"x")[0], 400)
 
+    def test_live_session_start_feed_poll_overlay_stop(self):
+        import time
+        import numpy as np
+        from srtforge_lite.live import LiveSession
+
+        words = [("Labas", 0.1, 0.5), ("rytas,", 0.6, 1.0), ("visiems.", 1.1, 1.6)]
+
+        def factory(options):
+            self.assertEqual(options["targets"], ["en"])
+            return LiveSession(lambda a: [w for w in words if w[2] <= len(a) / 16000], options["targets"], FakeTranslator())
+
+        self.app.live_factory = factory
+        status, body, _ = self.call("POST", "/api/live?model=base&language=lt&targets=en", b"")
+        self.assertEqual(status, 200, body)
+        live = json.loads(body)["id"]
+        for _ in range(6):
+            self.assertEqual(self.call("PUT", f"/api/live/{live}/audio", np.zeros(8000, dtype="<i2").tobytes())[0], 200)
+            time.sleep(0.5)
+        state = json.loads(self.call("GET", f"/api/live/{live}")[1])
+        self.assertTrue(state["running"])
+        self.assertIn("Labas", state["partial"] + " ".join(l["text"] for l in state["lines"]))
+        self.assertEqual(self.call("GET", "/api/live/nera")[0], 404)
+        self.assertEqual(self.call("PUT", "/api/live/nera/audio", b"x")[0], 404)
+        self.assertEqual(self.call("GET", f"/api/live/{live}", token=None)[0], 403)
+        page = self.call("GET", "/overlay?id=" + live)[1].decode()
+        self.assertIn(self.token, page)
+        self.assertEqual(self.call("POST", f"/api/live/{live}/stop", b"")[0], 200)
+        time.sleep(0.4)
+        srt = self.call("GET", f"/api/live/{live}/srt")[1].decode()
+        self.assertIn("Labas rytas, visiems.", srt)
+        self.assertIn("[en] Labas", self.call("GET", f"/api/live/{live}/srt?lang=en")[1].decode())
+        self.assertFalse(self.app.busy())
+
     def test_languages_endpoint(self):
         doc = json.loads(self.call("GET", "/api/languages")[1])
         self.assertIn("lv", doc["targets"])
