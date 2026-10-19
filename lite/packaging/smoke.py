@@ -79,10 +79,30 @@ def main() -> int:
         base = f"http://127.0.0.1:{info['port']}"
         headers = {"X-Token": info["token"]}
 
-        def call(method, path, body=None):
+        # Jokių sisteminių tarpinių serverių vietiniam adresui (Windows runneriai kartais juos turi)
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+        def call(method, path, body=None, timeout=30):
             request = urllib.request.Request(base + path, data=body, method=method, headers=headers)
-            with urllib.request.urlopen(request, timeout=30) as response:
+            with opener.open(request, timeout=timeout) as response:
                 return response.read()
+
+        def diagnose(reason):
+            print("=== DIAGNOSTIKA:", reason, "===", flush=True)
+            print("procesas gyvas:", proc.poll() is None, "kodas:", proc.poll(), flush=True)
+            for name in ("srtforge.log", "run.json"):
+                path = os.path.join(data, name)
+                if os.path.exists(path):
+                    text = open(path, encoding="utf-8", errors="replace").read()
+                    print(f"--- {name} ---\n{text[-3000:] if name != 'run.json' else '(yra)'}", flush=True)
+            if os.name == "nt":
+                subprocess.run(["netstat", "-ano"], check=False)
+
+        try:
+            call("GET", "/api/ping", timeout=20)
+        except Exception as error:  # noqa: BLE001
+            diagnose(f"ping nepavyko: {error!r}")
+            raise
 
         assert json.loads(call("GET", "/api/ping"))["ok"] is True
         page = call("GET", f"/?t={info['token']}").decode()
