@@ -15,6 +15,12 @@ import tempfile
 import time
 import urllib.request
 
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")   # Windows cp1252 neturi ą, č, ė...
+    except (AttributeError, ValueError):
+        pass
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 CLIP = os.path.join(os.path.dirname(HERE), "tests", "data", "speech_lt.wav")
 NAME = "SRT Forge Lite"
@@ -113,7 +119,11 @@ def main() -> int:
                     text = open(path, encoding="utf-8", errors="replace").read()
                     print(f"--- {name} ---\n{text[-3000:] if name != 'run.json' else '(yra)'}", flush=True)
             if os.name == "nt":
-                subprocess.run(["netstat", "-ano"], check=False)
+                print("--- procesai SRT Forge:", flush=True)
+                subprocess.run(["tasklist", "/fi", "imagename eq SRT Forge Lite.exe", "/v"], check=False)
+                out = subprocess.run(["netstat", "-ano"], capture_output=True, text=True).stdout
+                print("--- netstat (127.0.0.1):", flush=True)
+                print("\n".join(l for l in out.splitlines() if "127.0.0.1" in l), flush=True)
 
         try:
             call("GET", "/api/ping", timeout=40)       # >25 s: faulthandler spėja išmesti pėdsakus
