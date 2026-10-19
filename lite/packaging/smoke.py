@@ -102,6 +102,11 @@ def main() -> int:
             time.sleep(3)
             job = json.loads(call("GET", f"/api/jobs/{created['id']}"))
             print(" ", job["state"], round(job["progress"], 2), job["stage"], flush=True)
+        if job["state"] != "done":
+            log = os.path.join(data, "srtforge.log")
+            if os.path.exists(log):
+                print("=== srtforge.log ===")
+                print(open(log, encoding="utf-8", errors="replace").read()[-6000:])
         assert job["state"] == "done", f"užduotis nebaigta: {job}"
         assert job["cues"] >= 1, "nėra subtitrų"
         srt = call("GET", f"/api/jobs/{created['id']}/srt").decode("utf-8")

@@ -103,6 +103,7 @@ class App:
                 job.state, job.stage = "cancelled", "Nutraukta"
             except Exception as error:  # noqa: BLE001
                 job.state, job.stage, job.error = "failed", "Klaida", str(error)
+                _log_exception(job.name)
             finally:
                 try:
                     os.remove(job.path)
@@ -255,6 +256,17 @@ class App:
         if self.httpd:
             self.httpd.shutdown()
         shutil.rmtree(self.work_dir, ignore_errors=True)
+
+
+def _log_exception(name: str) -> None:
+    """Pilnas klaidos pėdsakas į duomenų katalogo žurnalą (palaikymui ir CI derinimui); niekada neišmeta klaidos."""
+    try:
+        import traceback
+
+        with open(os.path.join(data_dir(), "srtforge.log"), "a", encoding="utf-8") as handle:
+            handle.write(f"--- {time.strftime('%Y-%m-%d %H:%M:%S')} užduotis {name}\n{traceback.format_exc()}\n")
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def data_dir() -> str:

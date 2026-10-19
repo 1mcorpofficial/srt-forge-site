@@ -20,7 +20,6 @@ WizardStyle=modern
 UninstallDisplayName=SRT Forge Lite
 DisableProgramGroupPage=yes
 [Languages]
-Name: "lithuanian"; MessagesFile: "compiler:Languages\Lithuanian.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
